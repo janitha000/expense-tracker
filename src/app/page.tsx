@@ -16,7 +16,7 @@ import {
   ExpenseWithCategory,
   CategoryBudget,
 } from "@/lib/types";
-import { ExpenseFormData, CategoryFormData } from "@/lib/validators";
+import { ExpenseFormData, CategoryFormData, RecurringExpenseFormData } from "@/lib/validators";
 import { DEFAULT_CATEGORIES, DEFAULT_BASELINE_BUDGET } from "@/lib/constants";
 import { format, subMonths } from "date-fns";
 import { Loader2 } from "lucide-react";
@@ -144,6 +144,22 @@ export default function Home() {
         confetti({ particleCount: 30, spread: 50, origin: { y: 0.9 } });
       }
     }
+  };
+
+  // Quick Action: Add Recurring Monthly Expenses Series
+  const handleSaveRecurringExpense = async (data: RecurringExpenseFormData) => {
+    const res = await fetch("/api/expenses/recurring", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to create recurring expenses");
+    }
+    const createdList: ExpenseWithCategory[] = await res.json();
+    setAllExpenses((prev) => [...createdList, ...prev]);
+    confetti({ particleCount: 60, spread: 70, origin: { y: 0.8 } });
   };
 
   // Delete Expense
@@ -328,6 +344,7 @@ export default function Home() {
         categories={categories}
         editingExpense={editingExpense}
         onSave={handleSaveExpense}
+        onSaveRecurring={handleSaveRecurringExpense}
         defaultDate={currentDate}
       />
 

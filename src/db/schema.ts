@@ -21,6 +21,7 @@ export const expenses = pgTable("expenses", {
     .notNull(),
   parentType: parentTypeEnum("parent_type").notNull().default("normal"),
   note: text("note"),
+  recurringGroupId: uuid("recurring_group_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

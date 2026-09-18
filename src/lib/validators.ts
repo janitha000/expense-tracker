@@ -17,6 +17,28 @@ export const expenseSchema = z.object({
 
 export type ExpenseFormData = z.infer<typeof expenseSchema>;
 
+export const recurringExpenseSchema = z.object({
+  amount: z.coerce
+    .number({ message: "Amount must be a valid number" })
+    .positive({ message: "Amount must be greater than zero" })
+    .max(9999999.99, { message: "Amount is too large" }),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Start date must be in YYYY-MM-DD format" }),
+  instances: z.coerce
+    .number({ message: "Instances must be a number" })
+    .int({ message: "Instances must be an integer" })
+    .min(1, { message: "Must be at least 1 month" })
+    .max(60, { message: "Cannot exceed 60 months (5 years)" }),
+  categoryId: z.string().min(1, { message: "Please select a category" }),
+  parentType: z.enum(["normal", "one_time"], {
+    message: "Type must be either Normal or One-Time",
+  }),
+  note: z.string().max(255, { message: "Note cannot exceed 255 characters" }).optional().nullable(),
+});
+
+export type RecurringExpenseFormData = z.infer<typeof recurringExpenseSchema>;
+
 export const categorySchema = z.object({
   name: z
     .string()

@@ -16,11 +16,21 @@ export interface Expense {
   categoryId: string;
   parentType: ParentType;
   note?: string | null;
+  recurringGroupId?: string | null;
   createdAt: string | Date;
 }
 
 export interface ExpenseWithCategory extends Expense {
   category: Category;
+}
+
+export interface RecurringExpenseFormData {
+  amount: number;
+  startDate: string; // YYYY-MM-DD
+  instances: number; // Number of months (1 to 60)
+  categoryId: string;
+  parentType: ParentType;
+  note?: string | null;
 }
 
 export interface MonthlyBudget {

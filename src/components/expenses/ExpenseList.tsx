@@ -19,6 +19,7 @@ import {
   Calendar,
   AlertTriangle,
   Layers,
+  Repeat,
 } from "lucide-react";
 
 interface ExpenseListProps {
@@ -254,6 +255,12 @@ export function ExpenseList({
                           ) : (
                             <span className="inline-flex items-center rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 px-1.5 py-0.5 text-[9px] font-medium text-slate-600 dark:text-slate-300">
                               Normal
+                            </span>
+                          )}
+                          {exp.recurringGroupId && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 text-[9px] font-semibold text-purple-600 dark:text-purple-400">
+                              <Repeat className="h-2.5 w-2.5" />
+                              Recurring
                             </span>
                           )}
                         </div>

@@ -7,6 +7,7 @@ import {
   DEFAULT_BASELINE_BUDGET,
   DEFAULT_CATEGORY_BUDGET_MAP,
 } from "@/lib/constants";
+import { format, addMonths, parseISO } from "date-fns";
 import {
   Category,
   Expense,
@@ -14,6 +15,7 @@ import {
   MonthlyBudget,
   CategoryBudget,
   ParentType,
+  RecurringExpenseFormData,
 } from "@/lib/types";
 
 const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
@@ -159,6 +161,35 @@ class InMemoryStore {
     return this.getExpenseById(newExp.id)!;
   }
 
+  public createRecurringExpenses(data: RecurringExpenseFormData): ExpenseWithCategory[] {
+    const groupId = `rec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const start = parseISO(data.startDate);
+    const created: ExpenseWithCategory[] = [];
+
+    for (let i = 0; i < data.instances; i++) {
+      const instanceDate = format(addMonths(start, i), "yyyy-MM-dd");
+      const instanceNote = data.instances > 1
+        ? `${data.note ? data.note + " " : ""}(${i + 1}/${data.instances})`
+        : data.note || null;
+
+      const newExp: Expense = {
+        id: `exp-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`,
+        amount: typeof data.amount === "number" ? data.amount.toFixed(2) : data.amount,
+        date: instanceDate,
+        categoryId: data.categoryId,
+        parentType: data.parentType,
+        note: instanceNote,
+        recurringGroupId: groupId,
+        createdAt: new Date().toISOString(),
+      };
+      this.expenses.push(newExp);
+      const withCat = this.getExpenseById(newExp.id);
+      if (withCat) created.push(withCat);
+    }
+
+    return created;
+  }
+
   public updateExpense(
     id: string,
     data: Partial<{
@@ -294,8 +325,12 @@ export async function ensureSchema(): Promise<void> {
       "category_id" uuid NOT NULL REFERENCES "categories"("id") ON DELETE CASCADE,
       "parent_type" "parent_type" DEFAULT 'normal' NOT NULL,
       "note" text,
+      "recurring_group_id" uuid,
       "created_at" timestamp with time zone DEFAULT now() NOT NULL
     );`;
+
+    // Ensure recurring_group_id column exists if table was created previously
+    await sql`ALTER TABLE "expenses" ADD COLUMN IF NOT EXISTS "recurring_group_id" uuid;`;
 
     // Create monthly_budgets table
     await sql`CREATE TABLE IF NOT EXISTS "monthly_budgets" (
@@ -463,6 +498,7 @@ export const dataLayer = {
           categoryId: inserted.categoryId,
           parentType: inserted.parentType as ParentType,
           note: inserted.note,
+          recurringGroupId: inserted.recurringGroupId || null,
           createdAt: inserted.createdAt.toISOString(),
           category: cat
             ? { ...cat, createdAt: cat.createdAt.toISOString() }
@@ -480,6 +516,72 @@ export const dataLayer = {
       }
     }
     return memoryStore.createExpense(data);
+  },
+
+  async createRecurringExpenses(
+    data: RecurringExpenseFormData
+  ): Promise<ExpenseWithCategory[]> {
+    if (db) {
+      try {
+        await ensureSchema();
+        const start = parseISO(data.startDate);
+        const rowsToInsert = [];
+
+        for (let i = 0; i < data.instances; i++) {
+          const instanceDate = format(addMonths(start, i), "yyyy-MM-dd");
+          const instanceNote =
+            data.instances > 1
+              ? `${data.note ? data.note + " " : ""}(${i + 1}/${data.instances})`
+              : data.note || null;
+
+          rowsToInsert.push({
+            amount:
+              typeof data.amount === "number"
+                ? data.amount.toFixed(2)
+                : data.amount,
+            date: instanceDate,
+            categoryId: data.categoryId,
+            parentType: data.parentType,
+            note: instanceNote,
+          });
+        }
+
+        const insertedRows = await db
+          .insert(schema.expenses)
+          .values(rowsToInsert)
+          .returning();
+
+        const cat = await db.query.categories.findFirst({
+          where: eq(schema.categories.id, data.categoryId),
+        });
+
+        const categoryObj = cat
+          ? { ...cat, createdAt: cat.createdAt.toISOString() }
+          : {
+              id: data.categoryId,
+              name: "General",
+              icon: "CreditCard",
+              color: "#64748B",
+              isCustom: false,
+              createdAt: new Date().toISOString(),
+            };
+
+        return insertedRows.map((r) => ({
+          id: r.id,
+          amount: r.amount,
+          date: r.date,
+          categoryId: r.categoryId,
+          parentType: r.parentType as ParentType,
+          note: r.note,
+          recurringGroupId: r.recurringGroupId || null,
+          createdAt: r.createdAt.toISOString(),
+          category: categoryObj,
+        }));
+      } catch (err) {
+        console.error("Neon DB createRecurringExpenses error:", err);
+      }
+    }
+    return memoryStore.createRecurringExpenses(data);
   },
 
   async updateExpense(
