@@ -37,6 +37,7 @@ import {
   CartesianGrid,
   AreaChart,
   Area,
+  ReferenceLine,
 } from "recharts";
 import { format } from "date-fns";
 import { useTheme } from "@/context/ThemeContext";
@@ -71,6 +72,11 @@ export function AnalyticsDashboard({
   const categoryData = computeCategoryBreakdown(currentMonthExpenses, donutFilter);
   const monthlyTrend = computeMonthlyTrend(allExpenses, currentDate, 6);
   const dailyBurn = computeDailyBurnRate(currentMonthExpenses, currentDate, baselineBudget);
+
+  const endPoint = dailyBurn[dailyBurn.length - 1];
+  const projectedFinish = endPoint?.projectedNormal ?? kpi.normalTotal;
+  const isProjectedOver = projectedFinish > baselineBudget;
+  const projectedDiff = Math.abs(projectedFinish - baselineBudget);
 
   const oneTimePercentage =
     kpi.currentTotal > 0
@@ -201,30 +207,42 @@ export function AnalyticsDashboard({
         </div>
       </div>
 
-      {/* 2. DAILY CUMULATIVE BURN RATE (Maximized Width, Minimal Padding) */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3 sm:p-5 shadow-sm transition-colors">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+      {/* 2. DAILY LIVING EXPENSES BURN RATE & PACED PROJECTION */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3.5 sm:p-5 shadow-sm transition-colors space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div>
             <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
               <Activity className="h-4 w-4 text-blue-500 dark:text-blue-400" />
-              Daily Cumulative Burn Rate
+              Daily Living Burn Rate & Forecast
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Normal run-rate vs Total spend with ideal pace benchmark
+              Actual living spend (one-time excluded) vs. Paced Forecast & Target Pace
             </p>
           </div>
-          <div className="flex items-center gap-2.5 text-[10px] sm:text-[11px]">
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px]">
             <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
               <div className="h-2 w-2 rounded-full bg-blue-500" />
-              <span>Normal</span>
+              <span>Actual Spend</span>
             </div>
-            <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
-              <div className="h-2 w-2 rounded-full bg-amber-500" />
-              <span>Total</span>
+            <div className="flex items-center gap-1 text-purple-600 dark:text-purple-400 font-medium">
+              <div className="h-0.5 w-3 border-t-2 border-dashed border-purple-500" />
+              <span>Forecast Pace</span>
             </div>
             <div className="flex items-center gap-1 text-slate-400">
-              <div className="h-0.5 w-2.5 border-t border-dashed border-slate-400 dark:border-slate-500" />
-              <span>Ideal</span>
+              <div className="h-0.5 w-2.5 border-t border-dotted border-slate-400 dark:border-slate-500" />
+              <span>Target Pace</span>
+            </div>
+            <div
+              className={`rounded-full px-2 py-0.5 text-[10px] font-bold border ${
+                isProjectedOver
+                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+              }`}
+            >
+              Forecast: {formatCompactCurrency(projectedFinish)} (
+              {isProjectedOver ? `+${formatCompactCurrency(projectedDiff)} over` : `-${formatCompactCurrency(projectedDiff)} under`}
+              )
             </div>
           </div>
         </div>
@@ -232,15 +250,11 @@ export function AnalyticsDashboard({
         {/* Full-width Responsive Chart Container */}
         <div className="h-60 sm:h-64 w-full -mx-1 sm:mx-0">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={dailyBurn} margin={{ top: 8, right: 4, left: -22, bottom: 0 }}>
+            <AreaChart data={dailyBurn} margin={{ top: 12, right: 8, left: -20, bottom: 0 }}>
               <defs>
-                <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                </linearGradient>
                 <linearGradient id="colorNormal" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#1e293b" : "#f1f5f9"} />
@@ -267,25 +281,32 @@ export function AnalyticsDashboard({
                   boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
                 }}
                 formatter={(value: any, name: any) => {
-                  const num = Number(value) || 0;
+                  const num = Number(value);
+                  if (isNaN(num) || value === null) return ["-", name];
                   const label =
-                    name === "cumulativeTotal"
-                      ? "Total Spend"
-                      : name === "cumulativeNormal"
-                      ? "Normal Spend"
-                      : "Ideal Linear Pace";
+                    name === "cumulativeNormal"
+                      ? "Actual Spend (Normal)"
+                      : name === "projectedNormal"
+                      ? "Paced Forecast Trajectory"
+                      : "Target Budget Pace";
                   return [formatCurrency(num), label];
                 }}
                 labelFormatter={(label) => `Day ${label} (${format(currentDate, "MMM yyyy")})`}
               />
-              <Area
-                type="monotone"
-                dataKey="cumulativeTotal"
-                stroke="#f59e0b"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#colorTotal)"
+              <ReferenceLine
+                y={baselineBudget}
+                stroke="#f43f5e"
+                strokeDasharray="4 4"
+                strokeWidth={1}
+                label={{
+                  value: `Limit: ${formatCompactCurrency(baselineBudget)}`,
+                  position: "insideTopRight",
+                  fill: "#f43f5e",
+                  fontSize: 10,
+                  fontWeight: 600,
+                }}
               />
+              {/* Actual living spend area */}
               <Area
                 type="monotone"
                 dataKey="cumulativeNormal"
@@ -293,12 +314,24 @@ export function AnalyticsDashboard({
                 strokeWidth={2.5}
                 fillOpacity={1}
                 fill="url(#colorNormal)"
+                connectNulls={false}
               />
+              {/* Intelligent Paced Forecast Line */}
               <Area
                 type="monotone"
-                dataKey="idealBaseline"
+                dataKey="projectedNormal"
+                stroke="#a855f7"
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                fill="none"
+                connectNulls={false}
+              />
+              {/* Target Budget Pace Benchmark */}
+              <Area
+                type="monotone"
+                dataKey="targetBudgetPace"
                 stroke={isDark ? "#64748b" : "#94a3b8"}
-                strokeDasharray="4 4"
+                strokeDasharray="2 2"
                 strokeWidth={1.5}
                 fill="none"
               />

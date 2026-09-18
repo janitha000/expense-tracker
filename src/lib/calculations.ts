@@ -303,7 +303,8 @@ export function computeMonthlyTrend(
 }
 
 /**
- * Computes daily cumulative run rate comparison for the target month.
+ * Computes daily cumulative run rate comparison for the target month,
+ * isolating normal living expenses and generating an intelligent run-rate projection.
  */
 export function computeDailyBurnRate(
   currentMonthExpenses: ExpenseWithCategory[],
@@ -314,66 +315,80 @@ export function computeDailyBurnRate(
   const monthKey = format(targetDate, "yyyy-MM");
   const now = new Date();
   const isCurrentActiveMonth = isSameMonth(targetDate, now);
-  const maxDayToRender = isCurrentActiveMonth ? getDate(now) : daysInMonth;
+  const maxDayToRender = isCurrentActiveMonth ? Math.min(getDate(now), daysInMonth) : daysInMonth;
 
-  const dailyMap = new Map<number, { normal: number; oneTime: number }>();
+  // Track daily normal expenses (One-time expenses are strictly ignored)
+  const dailyNormalMap = new Map<number, number>();
   for (let d = 1; d <= daysInMonth; d++) {
-    dailyMap.set(d, { normal: 0, oneTime: 0 });
+    dailyNormalMap.set(d, 0);
   }
 
   for (const exp of currentMonthExpenses) {
-    if (exp.date.startsWith(monthKey)) {
+    if (exp.date.startsWith(monthKey) && exp.parentType === "normal") {
       const dayNum = parseInt(exp.date.substring(8, 10), 10);
-      if (dailyMap.has(dayNum)) {
-        const entry = dailyMap.get(dayNum)!;
-        const amt = Number(exp.amount) || 0;
-        if (exp.parentType === "one_time") {
-          entry.oneTime += amt;
-        } else {
-          entry.normal += amt;
-        }
+      if (dailyNormalMap.has(dayNum)) {
+        dailyNormalMap.set(
+          dayNum,
+          (dailyNormalMap.get(dayNum) || 0) + (Number(exp.amount) || 0)
+        );
       }
     }
   }
 
+  // Calculate actual normal spend up to current day
+  let totalNormalSoFar = 0;
+  for (let day = 1; day <= maxDayToRender; day++) {
+    totalNormalSoFar += dailyNormalMap.get(day) || 0;
+  }
+
+  // Current empirical daily burn pace (fallback to budget pace if 0)
+  const dailyRunRate =
+    totalNormalSoFar > 0 && maxDayToRender > 0
+      ? totalNormalSoFar / maxDayToRender
+      : baselineBudget / daysInMonth;
+
   const burnPoints: DailyBurnPoint[] = [];
   let runningNormal = 0;
-  let runningTotal = 0;
 
   for (let day = 1; day <= daysInMonth; day++) {
-    const entry = dailyMap.get(day)!;
-    const dailyNormal = entry.normal;
-    const dailyOneTime = entry.oneTime;
-    const dailyTotal = dailyNormal + dailyOneTime;
-
-    const idealBaseline = Number(((baselineBudget / daysInMonth) * day).toFixed(2));
+    const dailyNormal = dailyNormalMap.get(day) || 0;
     const padDay = day < 10 ? `0${day}` : `${day}`;
     const dateStr = `${monthKey}-${padDay}`;
+    const targetBudgetPace = Number(((baselineBudget / daysInMonth) * day).toFixed(2));
 
-    if (day <= maxDayToRender) {
+    if (day < maxDayToRender) {
       runningNormal += dailyNormal;
-      runningTotal += dailyTotal;
-
       burnPoints.push({
         day,
         date: dateStr,
         dailyNormal: Number(dailyNormal.toFixed(2)),
-        dailyOneTime: Number(dailyOneTime.toFixed(2)),
-        dailyTotal: Number(dailyTotal.toFixed(2)),
         cumulativeNormal: Number(runningNormal.toFixed(2)),
-        cumulativeTotal: Number(runningTotal.toFixed(2)),
-        idealBaseline,
+        projectedNormal: null,
+        targetBudgetPace,
+        budgetLimit: baselineBudget,
+      });
+    } else if (day === maxDayToRender) {
+      runningNormal += dailyNormal;
+      burnPoints.push({
+        day,
+        date: dateStr,
+        dailyNormal: Number(dailyNormal.toFixed(2)),
+        cumulativeNormal: Number(runningNormal.toFixed(2)),
+        projectedNormal: Number(runningNormal.toFixed(2)), // Anchor point for projection
+        targetBudgetPace,
+        budgetLimit: baselineBudget,
       });
     } else {
+      // Future days: project forward based on current daily run rate
+      const projected = Number((totalNormalSoFar + dailyRunRate * (day - maxDayToRender)).toFixed(2));
       burnPoints.push({
         day,
         date: dateStr,
         dailyNormal: 0,
-        dailyOneTime: 0,
-        dailyTotal: 0,
-        cumulativeNormal: Number(runningNormal.toFixed(2)),
-        cumulativeTotal: Number(runningTotal.toFixed(2)),
-        idealBaseline,
+        cumulativeNormal: null,
+        projectedNormal: projected,
+        targetBudgetPace,
+        budgetLimit: baselineBudget,
       });
     }
   }

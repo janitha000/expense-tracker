@@ -103,11 +103,10 @@ export interface DailyBurnPoint {
   day: number;
   date: string;
   dailyNormal: number;
-  dailyOneTime: number;
-  dailyTotal: number;
-  cumulativeNormal: number;
-  cumulativeTotal: number;
-  idealBaseline: number;
+  cumulativeNormal: number | null;
+  projectedNormal: number | null;
+  targetBudgetPace: number;
+  budgetLimit: number;
 }
 
 export interface DayGroupedExpenses {

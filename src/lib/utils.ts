@@ -26,3 +26,27 @@ export function formatCompactCurrency(amount: number): string {
   }
   return `Rs. ${amount.toFixed(0)}`;
 }
+
+export function getISTDate(): { dateStr: string; monthKey: string; formattedDate: string } {
+  const now = new Date();
+  const dateStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Colombo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+
+  const formattedDate = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Colombo",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(now);
+
+  return {
+    dateStr,
+    monthKey: dateStr.substring(0, 7),
+    formattedDate,
+  };
+}

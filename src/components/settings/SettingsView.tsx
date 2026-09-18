@@ -16,6 +16,9 @@ import {
   Sun,
   Moon,
   Laptop,
+  Mail,
+  Send,
+  Calendar,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import confetti from "canvas-confetti";
@@ -41,9 +44,65 @@ export function SettingsView({
   const { hasPinSet, isPinEnabled, enablePin, disablePin, openPinSetup } = useAuth();
   const { theme, setTheme } = useTheme();
   const [budgetInput, setBudgetInput] = useState<string>(baselineBudget.toString());
+  const [recipientEmail, setRecipientEmail] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("expense_notification_email") || "";
+    }
+    return "";
+  });
   const [isUpdatingBudget, setIsUpdatingBudget] = useState(false);
   const [isResettingSeed, setIsResettingSeed] = useState(false);
+  const [isSendingTestDaily, setIsSendingTestDaily] = useState(false);
+  const [isSendingTestMonthly, setIsSendingTestMonthly] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleSaveEmail = (val: string) => {
+    setRecipientEmail(val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("expense_notification_email", val);
+    }
+  };
+
+  const handleSendTestEmail = async (type: "daily" | "monthly") => {
+    if (!recipientEmail || !recipientEmail.includes("@")) {
+      setStatusMessage({
+        type: "error",
+        text: "Please enter a valid recipient email address first.",
+      });
+      return;
+    }
+
+    try {
+      if (type === "daily") setIsSendingTestDaily(true);
+      else setIsSendingTestMonthly(true);
+
+      const res = await fetch("/api/email/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, email: recipientEmail }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to send test ${type} email`);
+      }
+
+      confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
+      setStatusMessage({
+        type: "success",
+        text: `Test ${type === "daily" ? "Daily (9 PM)" : "Monthly"} summary dispatched to ${recipientEmail}! ${
+          data.emailResult?.mocked ? "(Logged to server console in dev mode)" : ""
+        }`,
+      });
+      setTimeout(() => setStatusMessage(null), 6000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to send email";
+      setStatusMessage({ type: "error", text: msg });
+    } finally {
+      setIsSendingTestDaily(false);
+      setIsSendingTestMonthly(false);
+    }
+  };
 
   const handleSaveBudget = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,7 +365,112 @@ export function SettingsView({
         </form>
       </div>
 
-      {/* 4. Database Connection & Deployment */}
+      {/* 4. Automated Email Reports (9:00 PM) Card */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 shadow-lg backdrop-blur-sm space-y-4">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+              <Mail className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                Automated 9:00 PM Email Reports
+                <span className="rounded-full bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 text-[10px] font-semibold text-purple-600 dark:text-purple-400">
+                  Scheduled
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Daily spending digests and end-of-month budget wrap-ups delivered automatically at 9:00 PM
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Recipient Email Input */}
+        <div className="space-y-1.5 border-t border-slate-100 dark:border-slate-800/80 pt-3">
+          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Recipient Email Address
+          </label>
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+              <Mail className="h-4 w-4" />
+            </div>
+            <input
+              type="email"
+              placeholder="e.g. yourname@gmail.com"
+              value={recipientEmail}
+              onChange={(e) => handleSaveEmail(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 py-2.5 pl-9 pr-3 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            Auto-saved in local preferences. For cloud cron runs, set <code className="text-purple-600 dark:text-purple-400 font-mono">NOTIFICATION_EMAIL</code> & <code className="text-purple-600 dark:text-purple-400 font-mono">RESEND_API_KEY</code> on Vercel.
+          </p>
+        </div>
+
+        {/* Schedule Details Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+          <div className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/60 p-3 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                🌙 Daily Digest (9:00 PM)
+              </span>
+              <span className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded font-bold">
+                Daily
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Itemized today&apos;s expenses, base vs one-time breakdown, and month-to-date budget pacing.
+            </p>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => handleSendTestEmail("daily")}
+                disabled={isSendingTestDaily || !recipientEmail}
+                className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 py-1.5 px-2.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                {isSendingTestDaily ? (
+                  <RefreshCw className="h-3 w-3 animate-spin text-blue-500" />
+                ) : (
+                  <Send className="h-3 w-3 text-purple-500" />
+                )}
+                <span>{isSendingTestDaily ? "Sending..." : "Send Test Daily Email"}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-100 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/60 p-3 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                🗓️ Month-End Wrap-Up (9:00 PM)
+              </span>
+              <span className="text-[10px] bg-blue-500/15 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-bold">
+                Monthly
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Complete monthly spending review, category allocations, budget surplus/deficit, and top expenses.
+            </p>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => handleSendTestEmail("monthly")}
+                disabled={isSendingTestMonthly || !recipientEmail}
+                className="w-full rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 py-1.5 px-2.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                {isSendingTestMonthly ? (
+                  <RefreshCw className="h-3 w-3 animate-spin text-blue-500" />
+                ) : (
+                  <Send className="h-3 w-3 text-indigo-500" />
+                )}
+                <span>{isSendingTestMonthly ? "Sending..." : "Send Test Monthly Email"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Database Connection & Deployment */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 shadow-lg backdrop-blur-sm space-y-3">
         <div className="flex items-center gap-3">
           <div
