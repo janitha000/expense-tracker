@@ -1,69 +1,279 @@
-import Image from "next/image";
+"use client";
+
+import React, { useState, useEffect, useCallback } from "react";
+import { Navbar } from "@/components/layout/Navbar";
+import { BottomNav, NavTab } from "@/components/layout/BottomNav";
+import { AnalyticsDashboard } from "@/components/dashboard/AnalyticsDashboard";
+import { ExpenseList } from "@/components/expenses/ExpenseList";
+import { CategoryManager } from "@/components/categories/CategoryManager";
+import { SettingsView } from "@/components/settings/SettingsView";
+import { ExpenseModal } from "@/components/expenses/ExpenseModal";
+import {
+  Category,
+  ExpenseWithCategory,
+  ParentType,
+} from "@/lib/types";
+import { ExpenseFormData, CategoryFormData } from "@/lib/validators";
+import { DEFAULT_CATEGORIES, DEFAULT_BASELINE_BUDGET } from "@/lib/constants";
+import { format, subMonths } from "date-fns";
+import { Loader2 } from "lucide-react";
+import confetti from "canvas-confetti";
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<NavTab>("dashboard");
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [allExpenses, setAllExpenses] = useState<ExpenseWithCategory[]>([]);
+  const [baselineBudget, setBaselineBudget] = useState<number>(DEFAULT_BASELINE_BUDGET);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLiveDb, setIsLiveDb] = useState<boolean>(false);
+
+  // Expense Modal State
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<ExpenseWithCategory | null>(null);
+
+  const monthKey = format(currentDate, "yyyy-MM");
+  const prevMonthKey = format(subMonths(currentDate, 1), "yyyy-MM");
+
+  // Load all initial data
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+
+      // 1. Fetch categories
+      const catRes = await fetch("/api/categories");
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        if (Array.isArray(catData) && catData.length > 0) {
+          setCategories(catData);
+        }
+      }
+
+      // 2. Fetch all expenses (for 6-month historical stacked trends & active calculations)
+      const expRes = await fetch("/api/expenses");
+      if (expRes.ok) {
+        const expData = await expRes.json();
+        if (Array.isArray(expData)) {
+          setAllExpenses(expData);
+        }
+      }
+
+      // 3. Fetch budget for the selected month
+      const budgetRes = await fetch(`/api/budgets?month=${monthKey}`);
+      if (budgetRes.ok) {
+        const budgetData = await budgetRes.json();
+        if (budgetData?.baselineAmount) {
+          setBaselineBudget(Number(budgetData.baselineAmount));
+        }
+      }
+    } catch (err) {
+      console.error("Error loading application data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [monthKey]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Expenses for the current selected month
+  const currentMonthExpenses = allExpenses.filter((e) =>
+    e.date.startsWith(monthKey)
+  );
+
+  // Expenses for the previous month (for MoM calculations)
+  const previousMonthExpenses = allExpenses.filter((e) =>
+    e.date.startsWith(prevMonthKey)
+  );
+
+  // Quick Action: Add / Update Expense
+  const handleSaveExpense = async (
+    data: ExpenseFormData,
+    expenseId?: string
+  ) => {
+    if (expenseId) {
+      // Update
+      const res = await fetch(`/api/expenses/${expenseId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update expense");
+      }
+      const updated = await res.json();
+      setAllExpenses((prev) =>
+        prev.map((e) => (e.id === expenseId ? updated : e))
+      );
+    } else {
+      // Create
+      const res = await fetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to create expense");
+      }
+      const created = await res.json();
+      setAllExpenses((prev) => [created, ...prev]);
+
+      // Trigger subtle celebratory confetti if under budget
+      if (data.parentType === "normal") {
+        confetti({ particleCount: 30, spread: 50, origin: { y: 0.9 } });
+      }
+    }
+  };
+
+  // Delete Expense
+  const handleDeleteExpense = async (id: string) => {
+    const res = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to delete expense");
+    }
+    setAllExpenses((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  // Create Category
+  const handleCreateCategory = async (data: CategoryFormData) => {
+    const res = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to create category");
+    }
+    const created = await res.json();
+    setCategories((prev) => [...prev, created]);
+    confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
+  };
+
+  // Delete Category
+  const handleDeleteCategory = async (id: string) => {
+    const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to delete category");
+    }
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+    setAllExpenses((prev) => prev.filter((e) => e.categoryId !== id));
+  };
+
+  // Update Baseline Budget
+  const handleUpdateBudget = async (newBudget: number) => {
+    const res = await fetch("/api/budgets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month: monthKey, baselineAmount: newBudget }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to update budget");
+    }
+    setBaselineBudget(newBudget);
+  };
+
+  // Reset & Re-seed Data
+  const handleResetSeed = async () => {
+    const res = await fetch("/api/seed", { method: "POST" });
+    if (!res.ok) {
+      throw new Error("Failed to seed database");
+    }
+    await loadData();
+  };
+
+  const handleOpenAdd = () => {
+    setEditingExpense(null);
+    setIsExpenseModalOpen(true);
+  };
+
+  const handleOpenEdit = (exp: ExpenseWithCategory) => {
+    setEditingExpense(exp);
+    setIsExpenseModalOpen(true);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="min-h-screen flex flex-col bg-[#090d16] text-slate-100 pb-16">
+      {/* Top Navigation Bar */}
+      <Navbar
+        currentDate={currentDate}
+        onMonthChange={setCurrentDate}
+        onOpenAddExpense={handleOpenAdd}
+        isLiveDb={isLiveDb}
+      />
+
+      {/* Main Content Area */}
+      <main className="flex-1 mx-auto w-full max-w-5xl px-4 py-5 sm:px-6">
+        {isLoading ? (
+          <div className="flex h-64 items-center justify-center gap-3 text-slate-400">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
+            <span className="text-sm font-medium">Loading your expenses...</span>
+          </div>
+        ) : (
+          <>
+            {activeTab === "dashboard" && (
+              <AnalyticsDashboard
+                currentMonthExpenses={currentMonthExpenses}
+                previousMonthExpenses={previousMonthExpenses}
+                allExpenses={allExpenses}
+                currentDate={currentDate}
+                baselineBudget={baselineBudget}
+              />
+            )}
+
+            {activeTab === "expenses" && (
+              <ExpenseList
+                expenses={currentMonthExpenses}
+                categories={categories}
+                onEditExpense={handleOpenEdit}
+                onDeleteExpense={handleDeleteExpense}
+                onOpenAddExpense={handleOpenAdd}
+              />
+            )}
+
+            {activeTab === "categories" && (
+              <CategoryManager
+                categories={categories}
+                onCreateCategory={handleCreateCategory}
+                onDeleteCategory={handleDeleteCategory}
+              />
+            )}
+
+            {activeTab === "settings" && (
+              <SettingsView
+                baselineBudget={baselineBudget}
+                onUpdateBudget={handleUpdateBudget}
+                onResetSeed={handleResetSeed}
+                isLiveDb={isLiveDb}
+                currentDate={currentDate}
+              />
+            )}
+          </>
+        )}
       </main>
+
+      {/* Quick Add/Edit Expense Modal */}
+      <ExpenseModal
+        isOpen={isExpenseModalOpen}
+        onClose={() => setIsExpenseModalOpen(false)}
+        categories={categories}
+        editingExpense={editingExpense}
+        onSave={handleSaveExpense}
+        defaultDate={currentDate}
+      />
+
+      {/* Bottom Navigation */}
+      <BottomNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onOpenAddExpense={handleOpenAdd}
+      />
     </div>
   );
 }
