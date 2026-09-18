@@ -343,6 +343,8 @@ export default function Home() {
         onClose={() => setIsExpenseModalOpen(false)}
         categories={categories}
         editingExpense={editingExpense}
+        categoryBudgets={categoryBudgets}
+        allExpenses={allExpenses}
         onSave={handleSaveExpense}
         onSaveRecurring={handleSaveRecurringExpense}
         defaultDate={currentDate}
