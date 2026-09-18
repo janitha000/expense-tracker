@@ -23,9 +23,6 @@ import {
   PieChart as PieIcon,
   BarChart3,
   Activity,
-  Calendar,
-  AlertCircle,
-  CheckCircle2,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -40,8 +37,6 @@ import {
   CartesianGrid,
   AreaChart,
   Area,
-  Legend,
-  ReferenceLine,
 } from "recharts";
 import { format } from "date-fns";
 import { useTheme } from "@/context/ThemeContext";
@@ -83,56 +78,49 @@ export function AnalyticsDashboard({
       : "0";
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-4 sm:space-y-6 pb-24">
       {/* 1. KPI SUMMARY CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
         {/* Card 1: Total Spend */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-gradient-to-b dark:from-slate-900 dark:to-slate-950 p-4 shadow-md transition-colors">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3.5 sm:p-4 shadow-sm transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Total Spend
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <DollarSign className="h-4 w-4" />
+            <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <div className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+          <div className="mt-1.5 text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white truncate">
             {formatCurrency(kpi.currentTotal)}
           </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>Daily avg: {formatCurrency(kpi.dailyAverage)}</span>
-            <span className="text-slate-400 dark:text-slate-500">Day {kpi.currentDay} of {kpi.daysInMonth}</span>
+          <div className="mt-1 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">
+            <span>Avg: {formatCurrency(kpi.dailyAverage)}/d</span>
+            <span className="text-slate-400 dark:text-slate-500">D{kpi.currentDay}/{kpi.daysInMonth}</span>
           </div>
         </div>
 
-        {/* Card 2: Normal Expenses vs Baseline Budget */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-gradient-to-b dark:from-slate-900 dark:to-slate-950 p-4 shadow-md transition-colors">
+        {/* Card 2: Normal vs Budget */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3.5 sm:p-4 shadow-sm transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Normal vs Budget
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Normal Spend
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <CreditCard className="h-4 w-4" />
+            <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CreditCard className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <div className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-baseline gap-1.5">
-            <span>{formatCurrency(kpi.normalTotal)}</span>
-            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-              / {formatCurrency(kpi.baselineBudget)}
-            </span>
+          <div className="mt-1.5 text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white truncate">
+            {formatCurrency(kpi.normalTotal)}
           </div>
-
-          {/* Budget Progress Bar */}
-          <div className="mt-2">
-            <div className="flex items-center justify-between text-[10px] mb-1">
+          <div className="mt-1.5">
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] mb-1">
               <span className={kpi.isOverBudget ? "text-red-500 dark:text-red-400 font-semibold" : "text-emerald-600 dark:text-emerald-400 font-medium"}>
-                {kpi.normalBudgetPct}% of baseline
+                {kpi.normalBudgetPct}%
               </span>
-              <span className="text-slate-500 dark:text-slate-400">
-                {kpi.isOverBudget ? "Over budget" : "Within budget"}
-              </span>
+              <span className="text-slate-400 truncate">Lim: {formatCompactCurrency(kpi.baselineBudget)}</span>
             </div>
-            <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
               <div
                 className={`h-full transition-all duration-500 rounded-full ${
                   kpi.isOverBudget
@@ -147,49 +135,49 @@ export function AnalyticsDashboard({
           </div>
         </div>
 
-        {/* Card 3: One-Time Expenses */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-gradient-to-b dark:from-slate-900 dark:to-slate-950 p-4 shadow-md transition-colors">
+        {/* Card 3: One-Time Spikes */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3.5 sm:p-4 shadow-sm transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              One-Time Spikes
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              1-Time Spikes
             </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 dark:text-amber-400">
-              <Sparkles className="h-4 w-4" />
+            <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 dark:text-amber-400">
+              <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
           </div>
-          <div className="mt-2 text-2xl font-black tracking-tight text-amber-600 dark:text-amber-400">
+          <div className="mt-1.5 text-lg sm:text-2xl font-black tracking-tight text-amber-600 dark:text-amber-400 truncate">
             {formatCurrency(kpi.oneTimeTotal)}
           </div>
-          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-            <span>{oneTimePercentage}% of total spend</span>
-            <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-300">
-              Discretionary
+          <div className="mt-1 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400">
+            <span>{oneTimePercentage}% of spend</span>
+            <span className="rounded bg-amber-500/10 px-1 py-0.5 text-[9px] text-amber-600 dark:text-amber-300">
+              Spike
             </span>
           </div>
         </div>
 
-        {/* Card 4: Month-over-Month Change */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-gradient-to-b dark:from-slate-900 dark:to-slate-950 p-4 shadow-md transition-colors">
+        {/* Card 4: MoM Change */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3.5 sm:p-4 shadow-sm transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               MoM Change
             </span>
             <div
-              className={`flex h-8 w-8 items-center justify-center rounded-xl ${
+              className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl ${
                 kpi.momChangePct !== null && kpi.momChangePct > 0
                   ? "bg-rose-500/10 text-rose-500 dark:text-rose-400"
                   : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               }`}
             >
               {kpi.momChangePct !== null && kpi.momChangePct > 0 ? (
-                <TrendingUp className="h-4 w-4" />
+                <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               ) : (
-                <TrendingDown className="h-4 w-4" />
+                <TrendingDown className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               )}
             </div>
           </div>
 
-          <div className="mt-2 text-2xl font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
+          <div className="mt-1.5 text-lg sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white truncate">
             {kpi.momChangePct !== null ? (
               <span
                 className={
@@ -203,47 +191,48 @@ export function AnalyticsDashboard({
                 {kpi.momChangePct > 0 ? `+${kpi.momChangePct}%` : `${kpi.momChangePct}%`}
               </span>
             ) : (
-              <span className="text-sm text-slate-400 font-normal">No prior data</span>
+              <span className="text-xs text-slate-400 font-normal">No prior data</span>
             )}
           </div>
 
-          <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 truncate">
-            Prev month: {formatCurrency(kpi.prevMonthTotal)}
+          <div className="mt-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate">
+            Prior: {formatCompactCurrency(kpi.prevMonthTotal)}
           </div>
         </div>
       </div>
 
-      {/* 2. DAILY CUMULATIVE BURN RATE (Area Chart) */}
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 shadow-lg transition-colors">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+      {/* 2. DAILY CUMULATIVE BURN RATE (Maximized Width, Minimal Padding) */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3 sm:p-5 shadow-sm transition-colors">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
           <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
               <Activity className="h-4 w-4 text-blue-500 dark:text-blue-400" />
               Daily Cumulative Burn Rate
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Normal run-rate vs Total spend with ideal linear budget benchmark
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Normal run-rate vs Total spend with ideal pace benchmark
             </p>
           </div>
-          <div className="flex items-center gap-3 text-[11px]">
-            <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-              <div className="h-2.5 w-2.5 rounded-full bg-blue-500" />
+          <div className="flex items-center gap-2.5 text-[10px] sm:text-[11px]">
+            <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+              <div className="h-2 w-2 rounded-full bg-blue-500" />
               <span>Normal</span>
             </div>
-            <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-              <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-              <span>Total (with 1-time)</span>
+            <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
+              <div className="h-2 w-2 rounded-full bg-amber-500" />
+              <span>Total</span>
             </div>
-            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-              <div className="h-0.5 w-3 border-t border-dashed border-slate-400 dark:border-slate-500" />
-              <span>Ideal Pace</span>
+            <div className="flex items-center gap-1 text-slate-400">
+              <div className="h-0.5 w-2.5 border-t border-dashed border-slate-400 dark:border-slate-500" />
+              <span>Ideal</span>
             </div>
           </div>
         </div>
 
-        <div className="h-64 w-full">
+        {/* Full-width Responsive Chart Container */}
+        <div className="h-60 sm:h-64 w-full -mx-1 sm:mx-0">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={dailyBurn} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+            <AreaChart data={dailyBurn} margin={{ top: 8, right: 4, left: -22, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
@@ -258,12 +247,14 @@ export function AnalyticsDashboard({
               <XAxis
                 dataKey="day"
                 stroke={isDark ? "#64748b" : "#94a3b8"}
-                tick={{ fontSize: 10 }}
+                tick={{ fontSize: 9 }}
                 tickFormatter={(val) => `D${val}`}
+                interval="preserveStartEnd"
               />
               <YAxis
+                width={48}
                 stroke={isDark ? "#64748b" : "#94a3b8"}
-                tick={{ fontSize: 10 }}
+                tick={{ fontSize: 9 }}
                 tickFormatter={(val) => formatCompactCurrency(Number(val))}
               />
               <Tooltip
@@ -271,7 +262,7 @@ export function AnalyticsDashboard({
                   backgroundColor: isDark ? "#0f172a" : "#ffffff",
                   borderColor: isDark ? "#334155" : "#e2e8f0",
                   borderRadius: "12px",
-                  fontSize: "12px",
+                  fontSize: "11px",
                   color: isDark ? "#f8fafc" : "#0f172a",
                   boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
                 }}
@@ -279,9 +270,9 @@ export function AnalyticsDashboard({
                   const num = Number(value) || 0;
                   const label =
                     name === "cumulativeTotal"
-                      ? "Total Cumulative"
+                      ? "Total Spend"
                       : name === "cumulativeNormal"
-                      ? "Normal Cumulative"
+                      ? "Normal Spend"
                       : "Ideal Linear Pace";
                   return [formatCurrency(num), label];
                 }}
@@ -316,13 +307,13 @@ export function AnalyticsDashboard({
         </div>
       </div>
 
-      {/* 3. TWO COLUMN ROW: Category Donut & 6-Month Stacked Trend */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* 3. TWO COLUMN ROW: Category Donut & 6-Month Stacked Trend (Optimized Width) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Category Breakdown (Donut Chart) */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 shadow-lg flex flex-col justify-between transition-colors">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3.5 sm:p-5 shadow-sm flex flex-col justify-between transition-colors">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                 <PieIcon className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                 Category Distribution
               </h3>
@@ -331,7 +322,7 @@ export function AnalyticsDashboard({
               <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-950 p-1 border border-slate-200 dark:border-slate-800">
                 <button
                   onClick={() => setDonutFilter("all")}
-                  className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition-all ${
+                  className={`rounded-lg px-2 py-0.5 text-[10px] sm:text-[11px] font-medium transition-all ${
                     donutFilter === "all"
                       ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-semibold shadow-sm"
                       : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
@@ -341,7 +332,7 @@ export function AnalyticsDashboard({
                 </button>
                 <button
                   onClick={() => setDonutFilter("normal")}
-                  className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition-all ${
+                  className={`rounded-lg px-2 py-0.5 text-[10px] sm:text-[11px] font-medium transition-all ${
                     donutFilter === "normal"
                       ? "bg-blue-600 text-white font-semibold"
                       : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
@@ -351,28 +342,28 @@ export function AnalyticsDashboard({
                 </button>
                 <button
                   onClick={() => setDonutFilter("one_time")}
-                  className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition-all ${
+                  className={`rounded-lg px-2 py-0.5 text-[10px] sm:text-[11px] font-medium transition-all ${
                     donutFilter === "one_time"
                       ? "bg-amber-600 text-white font-semibold"
                       : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                   }`}
                 >
-                  One-Time
+                  1-Time
                 </button>
               </div>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
               Breakdown by category for {donutFilter === "all" ? "all" : donutFilter} spending
             </p>
           </div>
 
           {categoryData.length === 0 ? (
-            <div className="flex h-52 items-center justify-center text-xs text-slate-400">
+            <div className="flex h-44 items-center justify-center text-xs text-slate-400 dark:text-slate-500">
               No expenses recorded in this view
             </div>
           ) : (
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <div className="h-52 w-52 shrink-0">
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="h-48 w-48 shrink-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -381,8 +372,8 @@ export function AnalyticsDashboard({
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={75}
+                      innerRadius={46}
+                      outerRadius={70}
                       paddingAngle={3}
                     >
                       {categoryData.map((entry) => (
@@ -394,7 +385,7 @@ export function AnalyticsDashboard({
                         backgroundColor: isDark ? "#0f172a" : "#ffffff",
                         borderColor: isDark ? "#334155" : "#e2e8f0",
                         borderRadius: "12px",
-                        fontSize: "12px",
+                        fontSize: "11px",
                         color: isDark ? "#f8fafc" : "#0f172a",
                       }}
                       formatter={(val: any) => [formatCurrency(Number(val)), "Spend"]}
@@ -404,7 +395,7 @@ export function AnalyticsDashboard({
               </div>
 
               {/* Category Legend List */}
-              <div className="flex-1 w-full space-y-2 max-h-52 overflow-y-auto pr-1">
+              <div className="flex-1 w-full space-y-1.5 max-h-48 overflow-y-auto pr-1">
                 {categoryData.map((cat) => (
                   <div
                     key={cat.id}
@@ -417,11 +408,15 @@ export function AnalyticsDashboard({
                       >
                         <DynamicIcon name={cat.icon} className="h-3 w-3" />
                       </div>
-                      <span className="text-slate-800 dark:text-slate-200 font-medium truncate">{cat.name}</span>
+                      <span className="text-slate-800 dark:text-slate-200 font-medium truncate text-[11px] sm:text-xs">
+                        {cat.name}
+                      </span>
                     </div>
                     <div className="text-right shrink-0 pl-2">
-                      <span className="font-bold text-slate-900 dark:text-slate-100">{formatCurrency(cat.total)}</span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-normal">
+                      <span className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                        {formatCurrency(cat.total)}
+                      </span>
+                      <span className="text-[9px] text-slate-500 dark:text-slate-400 block font-normal">
                         {cat.percentage}% ({cat.count})
                       </span>
                     </div>
@@ -432,16 +427,16 @@ export function AnalyticsDashboard({
           )}
         </div>
 
-        {/* Monthly Trend (Stacked Bar Chart: 6 Months) */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 shadow-lg transition-colors">
+        {/* Monthly Trend (Stacked Bar Chart: 6 Months - Maximized Width) */}
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3.5 sm:p-5 shadow-sm transition-colors">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                 <BarChart3 className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
                 6-Month Trend (Stacked)
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Normal base vs One-Time spikes over time
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Normal base vs One-Time spikes
               </p>
             </div>
             <div className="flex items-center gap-2 text-[10px]">
@@ -449,19 +444,20 @@ export function AnalyticsDashboard({
                 <span className="h-2 w-2 rounded-sm bg-blue-500" /> Normal
               </span>
               <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                <span className="h-2 w-2 rounded-sm bg-amber-500" /> One-Time
+                <span className="h-2 w-2 rounded-sm bg-amber-500" /> 1-Time
               </span>
             </div>
           </div>
 
-          <div className="h-56 w-full mt-4">
+          <div className="h-52 sm:h-56 w-full -mx-1 sm:mx-0 mt-2">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyTrend} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+              <BarChart data={monthlyTrend} margin={{ top: 8, right: 4, left: -22, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={isDark ? "#1e293b" : "#f1f5f9"} vertical={false} />
-                <XAxis dataKey="label" stroke={isDark ? "#64748b" : "#94a3b8"} tick={{ fontSize: 11 }} />
+                <XAxis dataKey="label" stroke={isDark ? "#64748b" : "#94a3b8"} tick={{ fontSize: 10 }} />
                 <YAxis
+                  width={48}
                   stroke={isDark ? "#64748b" : "#94a3b8"}
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 9 }}
                   tickFormatter={(val) => formatCompactCurrency(Number(val))}
                 />
                 <Tooltip
@@ -469,7 +465,7 @@ export function AnalyticsDashboard({
                     backgroundColor: isDark ? "#0f172a" : "#ffffff",
                     borderColor: isDark ? "#334155" : "#e2e8f0",
                     borderRadius: "12px",
-                    fontSize: "12px",
+                    fontSize: "11px",
                     color: isDark ? "#f8fafc" : "#0f172a",
                   }}
                   formatter={(value: any, name: any) => {

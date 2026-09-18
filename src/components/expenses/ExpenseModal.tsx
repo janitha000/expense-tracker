@@ -99,15 +99,15 @@ export function ExpenseModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-950/40">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-5 sm:px-6 py-3.5 bg-slate-50 dark:bg-slate-950/40">
           <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
               {editingExpense ? "Edit Expense" : "Add New Expense"}
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
               {editingExpense
                 ? "Update expense details"
-                : "Record a normal daily or one-time expense in LKR"}
+                : "Select category, classification, and amount"}
             </p>
           </div>
           <button
@@ -118,8 +118,8 @@ export function ExpenseModal({
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+        {/* Scrollable Form Body with Flow: 1. Category -> 2. Classification -> 3. Amount -> 4. Date -> 5. Note */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 sm:space-y-5">
           {errors.form && (
             <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500 dark:text-red-400 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -127,43 +127,50 @@ export function ExpenseModal({
             </div>
           )}
 
-          {/* Amount Input */}
+          {/* STEP 1: CATEGORY SELECTOR (FIRST) */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-              Amount (Rs.)
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+              1. Select Category
             </label>
-            <div className="relative">
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-base font-bold text-blue-600 dark:text-blue-400">
-                Rs.
-              </div>
-              <input
-                type="number"
-                step="1"
-                placeholder="0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                autoFocus
-                className={`w-full rounded-2xl border bg-slate-50 dark:bg-slate-950/70 py-3.5 pl-14 pr-4 text-2xl font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:ring-2 transition-all ${
-                  errors.amount
-                    ? "border-red-500 focus:ring-red-500/30"
-                    : "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/30"
-                }`}
-              />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-44 overflow-y-auto p-1 rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40">
+              {categories.map((cat) => {
+                const isSelected = categoryId === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategoryId(cat.id)}
+                    className={`flex items-center gap-2 rounded-xl p-2 text-left transition-all border ${
+                      isSelected
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-500/15 text-blue-900 dark:text-white shadow-sm ring-2 ring-blue-500/50"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <div
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white shadow-sm"
+                      style={{ backgroundColor: cat.color }}
+                    >
+                      <DynamicIcon name={cat.icon} className="h-3.5 w-3.5" />
+                    </div>
+                    <span className="text-xs font-semibold truncate">{cat.name}</span>
+                  </button>
+                );
+              })}
             </div>
-            {errors.amount && (
-              <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.amount}</p>
+            {errors.categoryId && (
+              <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.categoryId}</p>
             )}
           </div>
 
-          {/* Parent Type Toggle: Normal vs One-Time */}
+          {/* STEP 2: CLASSIFICATION (PARENT TYPE) */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Expense Classification
+              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                2. Classification
               </label>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400">
                 {parentType === "normal"
-                  ? "Recurring / Baseline run-rate"
+                  ? "Recurring / Living run-rate"
                   : "One-off / Discretionary spike"}
               </span>
             </div>
@@ -171,7 +178,7 @@ export function ExpenseModal({
               <button
                 type="button"
                 onClick={() => setParentType("normal")}
-                className={`flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 text-xs font-semibold transition-all ${
+                className={`flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-semibold transition-all ${
                   parentType === "normal"
                     ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
@@ -185,7 +192,7 @@ export function ExpenseModal({
               <button
                 type="button"
                 onClick={() => setParentType("one_time")}
-                className={`flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 text-xs font-semibold transition-all ${
+                className={`flex items-center justify-center gap-2 rounded-xl py-2 px-3 text-xs font-semibold transition-all ${
                   parentType === "one_time"
                     ? "bg-gradient-to-r from-amber-600 to-pink-600 text-white shadow-md shadow-amber-500/20"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
@@ -198,59 +205,52 @@ export function ExpenseModal({
             </div>
           </div>
 
-          {/* Category Selector Grid */}
+          {/* STEP 3: AMOUNT */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
-              Category
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+              3. Amount (Rs.)
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40">
-              {categories.map((cat) => {
-                const isSelected = categoryId === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setCategoryId(cat.id)}
-                    className={`flex items-center gap-2 rounded-xl p-2 text-left transition-all border ${
-                      isSelected
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-500/15 text-blue-900 dark:text-white shadow-sm ring-1 ring-blue-500"
-                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    <div
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white"
-                      style={{ backgroundColor: cat.color }}
-                    >
-                      <DynamicIcon name={cat.icon} className="h-3.5 w-3.5" />
-                    </div>
-                    <span className="text-xs font-medium truncate">{cat.name}</span>
-                  </button>
-                );
-              })}
+            <div className="relative">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-base font-bold text-blue-600 dark:text-blue-400">
+                Rs.
+              </div>
+              <input
+                type="number"
+                step="1"
+                placeholder="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                autoFocus
+                className={`w-full rounded-2xl border bg-slate-50 dark:bg-slate-950/70 py-3 pl-14 pr-4 text-2xl font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:ring-2 transition-all ${
+                  errors.amount
+                    ? "border-red-500 focus:ring-red-500/30"
+                    : "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/30"
+                }`}
+              />
             </div>
-            {errors.categoryId && (
-              <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.categoryId}</p>
+            {errors.amount && (
+              <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.amount}</p>
             )}
           </div>
 
-          {/* Date Picker + Quick Buttons */}
+          {/* STEP 4: DATE */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Date
+              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                4. Date
               </label>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setDateShortcut("today")}
-                  className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   Today
                 </button>
                 <button
                   type="button"
                   onClick={() => setDateShortcut("yesterday")}
-                  className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   Yesterday
                 </button>
@@ -261,32 +261,32 @@ export function ExpenseModal({
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 py-2.5 px-3.5 text-sm text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 py-2.5 px-3.5 text-xs sm:text-sm text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               />
             </div>
             {errors.date && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.date}</p>}
           </div>
 
-          {/* Notes Input */}
+          {/* STEP 5: NOTES (OPTIONAL) */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-              Note (Optional)
+            <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1 uppercase tracking-wider">
+              5. Note (Optional)
             </label>
             <input
               type="text"
               placeholder="e.g. Supermarket shopping, fuel refill..."
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 py-2.5 px-3.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 py-2 px-3.5 text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
             />
           </div>
 
           {/* Footer Submit */}
-          <div className="pt-2">
+          <div className="pt-1">
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500 py-3 px-4 text-sm font-bold text-white shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-emerald-400 active:scale-98 transition-all disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500 py-3 px-4 text-xs sm:text-sm font-bold text-white shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-emerald-400 active:scale-98 transition-all disabled:opacity-50"
             >
               {isSubmitting ? (
                 <>
