@@ -35,6 +35,7 @@ interface ExpenseModalProps {
   allExpenses?: ExpenseWithCategory[];
   onSave: (expenseData: ExpenseFormData, expenseId?: string) => Promise<void>;
   onSaveRecurring?: (recurringData: RecurringExpenseFormData) => Promise<void>;
+  onUpdateRecurring?: (groupId: string, data: ExpenseFormData, fromDate?: string) => Promise<void>;
   defaultDate?: Date;
 }
 
@@ -47,6 +48,7 @@ export function ExpenseModal({
   allExpenses = [],
   onSave,
   onSaveRecurring,
+  onUpdateRecurring,
   defaultDate = new Date(),
 }: ExpenseModalProps) {
   const [amount, setAmount] = useState<string>("");
@@ -56,6 +58,7 @@ export function ExpenseModal({
   const [note, setNote] = useState<string>("");
   const [isRecurring, setIsRecurring] = useState<boolean>(false);
   const [instances, setInstances] = useState<number>(6);
+  const [updateRecurringScope, setUpdateRecurringScope] = useState<"this_only" | "all_future">("all_future");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -67,6 +70,7 @@ export function ExpenseModal({
       setParentType(editingExpense.parentType);
       setNote(editingExpense.note || "");
       setIsRecurring(false);
+      setUpdateRecurringScope("all_future");
     } else {
       setAmount("");
       setDate(format(defaultDate, "yyyy-MM-dd"));
@@ -75,6 +79,7 @@ export function ExpenseModal({
       setNote("");
       setIsRecurring(false);
       setInstances(6);
+      setUpdateRecurringScope("all_future");
     }
     setErrors({});
   }, [editingExpense, isOpen, categories, defaultDate]);
@@ -155,7 +160,19 @@ export function ExpenseModal({
 
     try {
       setIsSubmitting(true);
-      await onSave(result.data, editingExpense?.id);
+      if (
+        editingExpense?.recurringGroupId &&
+        updateRecurringScope === "all_future" &&
+        onUpdateRecurring
+      ) {
+        await onUpdateRecurring(
+          editingExpense.recurringGroupId,
+          result.data,
+          editingExpense.date
+        );
+      } else {
+        await onSave(result.data, editingExpense?.id);
+      }
       onClose();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to save expense";
@@ -176,7 +193,7 @@ export function ExpenseModal({
   const endDate = addMonths(validDate, Math.max(1, instances) - 1);
   const totalRecurringAmount = (parseFloat(amount) || 0) * (instances || 1);
 
-  // Real-time Budget Comparison & Alerts (🟢 OK, 🟡 Warning, 🔴 Red Alert)
+  // Real-time Budget Comparison & Alerts (Only Normal expenses count towards the budget)
   const targetMonth = date ? date.substring(0, 7) : format(new Date(), "yyyy-MM");
   const selectedCat = categories.find((c) => c.id === categoryId);
   const catBudgetObj = categoryBudgets.find(
@@ -188,21 +205,25 @@ export function ExpenseModal({
     ? DEFAULT_CATEGORY_BUDGET_MAP[selectedCat.name] || 25000
     : 25000;
 
-  const existingCatSpent = allExpenses
+  // Only normal base expenses count against the category budget limit
+  const existingCatNormalSpent = allExpenses
     .filter(
       (e) =>
         (e.categoryId === categoryId || e.category?.id === categoryId) &&
         e.date.startsWith(targetMonth) &&
+        e.parentType === "normal" &&
         e.id !== editingExpense?.id
     )
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
+  const isOneTimeExpense = parentType === "one_time";
   const enteredAmount = parseFloat(amount) || 0;
-  const projectedSpent = existingCatSpent + enteredAmount;
-  const budgetRemaining = catBudgetAmount - projectedSpent;
-  const percentUsed = catBudgetAmount > 0 ? (projectedSpent / catBudgetAmount) * 100 : 0;
-  const isOverBudget = projectedSpent > catBudgetAmount;
-  const isApproachingLimit = !isOverBudget && percentUsed >= 80;
+  // If one_time, it does not count towards the budget limit
+  const projectedNormalSpent = existingCatNormalSpent + (isOneTimeExpense ? 0 : enteredAmount);
+  const budgetRemaining = catBudgetAmount - projectedNormalSpent;
+  const percentUsed = catBudgetAmount > 0 ? (projectedNormalSpent / catBudgetAmount) * 100 : 0;
+  const isOverBudget = !isOneTimeExpense && projectedNormalSpent > catBudgetAmount;
+  const isApproachingLimit = !isOneTimeExpense && !isOverBudget && percentUsed >= 80;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
@@ -247,6 +268,43 @@ export function ExpenseModal({
             <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500 dark:text-red-400 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{errors.form}</span>
+            </div>
+          )}
+
+          {/* RECURRING EXPENSE EDIT SCOPE BANNER */}
+          {editingExpense?.recurringGroupId && (
+            <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 dark:bg-purple-950/20 p-3.5 space-y-2.5">
+              <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 font-bold text-xs">
+                <Repeat className="h-4 w-4 shrink-0" />
+                <span>Editing Recurring Series Entry</span>
+              </div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                Choose the scope for your changes:
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setUpdateRecurringScope("this_only")}
+                  className={`rounded-xl py-2 px-2.5 text-xs font-semibold border transition-all text-center ${
+                    updateRecurringScope === "this_only"
+                      ? "border-purple-500 bg-purple-600 text-white shadow-sm"
+                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  This entry only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUpdateRecurringScope("all_future")}
+                  className={`rounded-xl py-2 px-2.5 text-xs font-semibold border transition-all text-center ${
+                    updateRecurringScope === "all_future"
+                      ? "border-purple-500 bg-purple-600 text-white shadow-sm"
+                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  This & future occurrences
+                </button>
+              </div>
             </div>
           )}
 
@@ -354,11 +412,13 @@ export function ExpenseModal({
               <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.amount}</p>
             )}
 
-            {/* REAL-TIME BUDGET COMPARISON & ALERTS (🟢 OK, 🟡 Warning, 🔴 Red Alert) */}
+            {/* REAL-TIME BUDGET COMPARISON & ALERTS */}
             {selectedCat && (
               <div
                 className={`mt-2.5 rounded-2xl border p-3.5 space-y-2 transition-all duration-200 animate-in fade-in duration-200 ${
-                  isOverBudget
+                  isOneTimeExpense
+                    ? "border-purple-500/30 bg-purple-500/10 dark:bg-purple-950/20 text-purple-900 dark:text-purple-200"
+                    : isOverBudget
                     ? "border-rose-500/40 bg-rose-500/10 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200 shadow-sm shadow-rose-500/10"
                     : isApproachingLimit
                     ? "border-amber-500/40 bg-amber-500/10 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 shadow-sm shadow-amber-500/10"
@@ -367,7 +427,14 @@ export function ExpenseModal({
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 font-bold text-xs">
-                    {isOverBudget ? (
+                    {isOneTimeExpense ? (
+                      <>
+                        <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                        <span className="text-purple-600 dark:text-purple-400">
+                          One-Time Expense (Excluded from Budget)
+                        </span>
+                      </>
+                    ) : isOverBudget ? (
                       <>
                         <AlertOctagon className="h-4 w-4 text-rose-600 dark:text-rose-400 shrink-0 animate-bounce" />
                         <span className="text-rose-600 dark:text-rose-400">🚨 Red Alert: Over Budget!</span>
@@ -386,14 +453,16 @@ export function ExpenseModal({
                   </div>
                   <span
                     className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                      isOverBudget
+                      isOneTimeExpense
+                        ? "bg-purple-500/20 text-purple-700 dark:text-purple-300"
+                        : isOverBudget
                         ? "bg-rose-500/20 text-rose-700 dark:text-rose-300"
                         : isApproachingLimit
                         ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
                         : "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
                     }`}
                   >
-                    {percentUsed.toFixed(1)}% Used
+                    {isOneTimeExpense ? "Excluded" : `${percentUsed.toFixed(1)}% Used`}
                   </span>
                 </div>
 
@@ -401,7 +470,9 @@ export function ExpenseModal({
                 <div className="h-2 w-full rounded-full bg-slate-200/80 dark:bg-slate-800/80 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ${
-                      isOverBudget
+                      isOneTimeExpense
+                        ? "bg-purple-500"
+                        : isOverBudget
                         ? "bg-rose-500"
                         : isApproachingLimit
                         ? "bg-amber-500"
@@ -413,16 +484,20 @@ export function ExpenseModal({
 
                 {/* Detailed Feedback Breakdown */}
                 <div className="text-[11px] leading-relaxed">
-                  {isOverBudget ? (
+                  {isOneTimeExpense ? (
+                    <span>
+                      This expense is classified as a <strong>one-time spike</strong> and does not count towards the <strong>{selectedCat.name}</strong> monthly budget limit. Base run-rate remains at <strong>{formatCurrency(existingCatNormalSpent)}</strong> / <strong>{formatCurrency(catBudgetAmount)}</strong> ({percentUsed.toFixed(1)}%).
+                    </span>
+                  ) : isOverBudget ? (
                     <span>
                       Will exceed <strong>{selectedCat.name}</strong> budget by{" "}
                       <strong className="text-rose-600 dark:text-rose-400 font-bold">
                         {formatCurrency(Math.abs(budgetRemaining))}
-                      </strong>! (Projected total: {formatCurrency(projectedSpent)} vs {formatCurrency(catBudgetAmount)} limit)
+                      </strong>! (Projected total: {formatCurrency(projectedNormalSpent)} vs {formatCurrency(catBudgetAmount)} limit)
                     </span>
                   ) : isApproachingLimit ? (
                     <span>
-                      Reaches <strong>{formatCurrency(projectedSpent)}</strong> of <strong>{formatCurrency(catBudgetAmount)}</strong> budget. Only{" "}
+                      Reaches <strong>{formatCurrency(projectedNormalSpent)}</strong> of <strong>{formatCurrency(catBudgetAmount)}</strong> budget. Only{" "}
                       <strong className="text-amber-600 dark:text-amber-400 font-bold">
                         {formatCurrency(budgetRemaining)}
                       </strong>{" "}
@@ -430,7 +505,7 @@ export function ExpenseModal({
                     </span>
                   ) : (
                     <span>
-                      Well within budget: <strong>{formatCurrency(projectedSpent)}</strong> / <strong>{formatCurrency(catBudgetAmount)}</strong>. Remaining buffer:{" "}
+                      Well within budget: <strong>{formatCurrency(projectedNormalSpent)}</strong> / <strong>{formatCurrency(catBudgetAmount)}</strong>. Remaining buffer:{" "}
                       <strong className="text-emerald-600 dark:text-emerald-400 font-bold">
                         {formatCurrency(budgetRemaining)}
                       </strong>.

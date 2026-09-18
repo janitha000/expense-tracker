@@ -56,9 +56,10 @@ export function BudgetPage({
   );
 
   const totalAllocatedBudget = budgetProgress.reduce((sum, b) => sum + b.budgetAmount, 0);
-  const totalSpent = budgetProgress.reduce((sum, b) => sum + b.spentTotal, 0);
-  const totalRemaining = totalAllocatedBudget - totalSpent;
-  const overallPercentage = totalAllocatedBudget > 0 ? (totalSpent / totalAllocatedBudget) * 100 : 0;
+  const totalNormalSpent = budgetProgress.reduce((sum, b) => sum + b.normalSpent, 0);
+  const totalOneTimeSpent = budgetProgress.reduce((sum, b) => sum + b.oneTimeSpent, 0);
+  const totalRemaining = totalAllocatedBudget - totalNormalSpent;
+  const overallPercentage = totalAllocatedBudget > 0 ? (totalNormalSpent / totalAllocatedBudget) * 100 : 0;
 
   const overSpentCount = budgetProgress.filter((b) => b.status === "over_spent").length;
   const cautionCount = budgetProgress.filter((b) => b.status === "caution").length;
@@ -146,11 +147,16 @@ export function BudgetPage({
 
           <div>
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Total Spent
+              Budgeted Spent
             </span>
             <div className="text-lg sm:text-xl font-black text-blue-600 dark:text-blue-400 mt-0.5">
-              {formatCurrency(totalSpent)}
+              {formatCurrency(totalNormalSpent)}
             </div>
+            {totalOneTimeSpent > 0 && (
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                +{formatCurrency(totalOneTimeSpent)} 1-time
+              </div>
+            )}
           </div>
 
           <div>

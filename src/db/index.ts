@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, gte } from "drizzle-orm";
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_BASELINE_BUDGET,
@@ -162,7 +162,7 @@ class InMemoryStore {
   }
 
   public createRecurringExpenses(data: RecurringExpenseFormData): ExpenseWithCategory[] {
-    const groupId = `rec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const groupId = crypto.randomUUID();
     const start = parseISO(data.startDate);
     const created: ExpenseWithCategory[] = [];
 
@@ -173,7 +173,7 @@ class InMemoryStore {
         : data.note || null;
 
       const newExp: Expense = {
-        id: `exp-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`,
+        id: crypto.randomUUID(),
         amount: typeof data.amount === "number" ? data.amount.toFixed(2) : data.amount,
         date: instanceDate,
         categoryId: data.categoryId,
@@ -225,6 +225,50 @@ class InMemoryStore {
     const initialLen = this.expenses.length;
     this.expenses = this.expenses.filter((e) => e.id !== id);
     return this.expenses.length < initialLen;
+  }
+
+  public deleteRecurringGroup(groupId: string, fromDate?: string): number {
+    const initialLen = this.expenses.length;
+    this.expenses = this.expenses.filter((e) => {
+      if (e.recurringGroupId !== groupId) return true;
+      if (fromDate) {
+        return e.date < fromDate;
+      }
+      return false;
+    });
+    return initialLen - this.expenses.length;
+  }
+
+  public updateRecurringGroup(
+    groupId: string,
+    data: Partial<{
+      amount: number | string;
+      categoryId: string;
+      parentType: ParentType;
+      note?: string | null;
+    }>,
+    fromDate?: string
+  ): number {
+    let count = 0;
+    this.expenses = this.expenses.map((e) => {
+      if (e.recurringGroupId === groupId && (!fromDate || e.date >= fromDate)) {
+        count++;
+        return {
+          ...e,
+          amount:
+            data.amount !== undefined
+              ? typeof data.amount === "number"
+                ? data.amount.toFixed(2)
+                : data.amount
+              : e.amount,
+          categoryId: data.categoryId !== undefined ? data.categoryId : e.categoryId,
+          parentType: data.parentType !== undefined ? data.parentType : e.parentType,
+          note: data.note !== undefined ? data.note : e.note,
+        };
+      }
+      return e;
+    });
+    return count;
   }
 
   public clearAllExpenses(): void {
@@ -527,6 +571,7 @@ export const dataLayer = {
     if (db) {
       try {
         await ensureSchema();
+        const groupId = crypto.randomUUID();
         const start = parseISO(data.startDate);
         const rowsToInsert = [];
 
@@ -546,6 +591,7 @@ export const dataLayer = {
             categoryId: data.categoryId,
             parentType: data.parentType,
             note: instanceNote,
+            recurringGroupId: groupId,
           });
         }
 
@@ -585,6 +631,78 @@ export const dataLayer = {
       }
     }
     return memoryStore.createRecurringExpenses(data);
+  },
+
+  async deleteRecurringGroup(groupId: string, fromDate?: string): Promise<number> {
+    if (db) {
+      try {
+        await ensureSchema();
+        if (fromDate) {
+          await db
+            .delete(schema.expenses)
+            .where(
+              and(
+                eq(schema.expenses.recurringGroupId, groupId),
+                gte(schema.expenses.date, fromDate)
+              )
+            );
+        } else {
+          await db
+            .delete(schema.expenses)
+            .where(eq(schema.expenses.recurringGroupId, groupId));
+        }
+        return 1;
+      } catch (err) {
+        console.error("Neon DB deleteRecurringGroup error:", err);
+      }
+    }
+    return memoryStore.deleteRecurringGroup(groupId, fromDate);
+  },
+
+  async updateRecurringGroup(
+    groupId: string,
+    data: Partial<{
+      amount: number | string;
+      categoryId: string;
+      parentType: ParentType;
+      note?: string | null;
+    }>,
+    fromDate?: string
+  ): Promise<number> {
+    if (db) {
+      try {
+        await ensureSchema();
+        const updateValues: Record<string, unknown> = {};
+        if (data.amount !== undefined) {
+          updateValues.amount =
+            typeof data.amount === "number" ? data.amount.toFixed(2) : data.amount;
+        }
+        if (data.categoryId !== undefined) updateValues.categoryId = data.categoryId;
+        if (data.parentType !== undefined) updateValues.parentType = data.parentType;
+        if (data.note !== undefined) updateValues.note = data.note;
+
+        if (fromDate) {
+          await db
+            .update(schema.expenses)
+            .set(updateValues)
+            .where(
+              and(
+                eq(schema.expenses.recurringGroupId, groupId),
+                gte(schema.expenses.date, fromDate)
+              )
+            );
+        } else {
+          await db
+            .update(schema.expenses)
+            .set(updateValues)
+            .where(eq(schema.expenses.recurringGroupId, groupId));
+        }
+        return 1;
+      } catch (err) {
+        console.error("Neon DB updateRecurringGroup error:", err);
+      }
+    }
+    return memoryStore.updateRecurringGroup(groupId, data, fromDate);
   },
 
   async updateExpense(

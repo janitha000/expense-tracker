@@ -172,6 +172,56 @@ export default function Home() {
     setAllExpenses((prev) => prev.filter((e) => e.id !== id));
   };
 
+  // Delete Recurring Expense Group
+  const handleDeleteRecurring = async (groupId: string, fromDate?: string) => {
+    const url = `/api/expenses/recurring/${groupId}${fromDate ? `?fromDate=${fromDate}` : ""}`;
+    const res = await fetch(url, { method: "DELETE" });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to delete recurring expenses");
+    }
+    setAllExpenses((prev) =>
+      prev.filter((e) => {
+        if (e.recurringGroupId !== groupId) return true;
+        if (fromDate) return e.date < fromDate;
+        return false;
+      })
+    );
+  };
+
+  // Update Recurring Expense Group
+  const handleUpdateRecurring = async (
+    groupId: string,
+    data: ExpenseFormData,
+    fromDate?: string
+  ) => {
+    const res = await fetch(`/api/expenses/recurring/${groupId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...data, fromDate }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to update recurring expenses");
+    }
+    const targetCat = categories.find((c) => c.id === data.categoryId);
+    setAllExpenses((prev) =>
+      prev.map((e) => {
+        if (e.recurringGroupId === groupId && (!fromDate || e.date >= fromDate)) {
+          return {
+            ...e,
+            amount: typeof data.amount === "number" ? data.amount.toFixed(2) : data.amount,
+            categoryId: data.categoryId,
+            parentType: data.parentType,
+            note: data.note || null,
+            category: targetCat || e.category,
+          };
+        }
+        return e;
+      })
+    );
+  };
+
   // Create Category
   const handleCreateCategory = async (data: CategoryFormData) => {
     const res = await fetch("/api/categories", {
@@ -301,6 +351,7 @@ export default function Home() {
                 categories={categories}
                 onEditExpense={handleOpenEdit}
                 onDeleteExpense={handleDeleteExpense}
+                onDeleteRecurring={handleDeleteRecurring}
                 onOpenAddExpense={handleOpenAdd}
               />
             )}
@@ -347,6 +398,7 @@ export default function Home() {
         allExpenses={allExpenses}
         onSave={handleSaveExpense}
         onSaveRecurring={handleSaveRecurringExpense}
+        onUpdateRecurring={handleUpdateRecurring}
         defaultDate={currentDate}
       />
 

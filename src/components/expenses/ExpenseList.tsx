@@ -27,6 +27,7 @@ interface ExpenseListProps {
   categories: Category[];
   onEditExpense: (expense: ExpenseWithCategory) => void;
   onDeleteExpense: (id: string) => Promise<void>;
+  onDeleteRecurring?: (groupId: string, fromDate?: string) => Promise<void>;
   onOpenAddExpense: () => void;
 }
 
@@ -35,12 +36,14 @@ export function ExpenseList({
   categories,
   onEditExpense,
   onDeleteExpense,
+  onDeleteRecurring,
   onOpenAddExpense,
 }: ExpenseListProps) {
   const [parentTypeFilter, setParentTypeFilter] = useState<"all" | ParentType>("all");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [recurringDeleteTarget, setRecurringDeleteTarget] = useState<ExpenseWithCategory | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Filter expenses
@@ -73,6 +76,20 @@ export function ExpenseList({
       setIsDeleting(true);
       await onDeleteExpense(id);
       setDeleteConfirmId(null);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteRecurring = async (groupId: string, fromDate?: string) => {
+    try {
+      setIsDeleting(true);
+      if (onDeleteRecurring) {
+        await onDeleteRecurring(groupId, fromDate);
+      } else if (recurringDeleteTarget) {
+        await onDeleteExpense(recurringDeleteTarget.id);
+      }
+      setRecurringDeleteTarget(null);
     } finally {
       setIsDeleting(false);
     }
@@ -294,7 +311,13 @@ export function ExpenseList({
                           <Edit3 className="h-3.5 w-3.5" />
                         </button>
                         <button
-                          onClick={() => setDeleteConfirmId(exp.id)}
+                          onClick={() => {
+                            if (exp.recurringGroupId) {
+                              setRecurringDeleteTarget(exp);
+                            } else {
+                              setDeleteConfirmId(exp.id);
+                            }
+                          }}
                           className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 dark:hover:bg-slate-800 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                           title="Delete expense"
                         >
@@ -310,7 +333,7 @@ export function ExpenseList({
         ))}
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Standard Delete Confirmation Modal */}
       {deleteConfirmId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-2xl space-y-4">
@@ -339,6 +362,108 @@ export function ExpenseList({
                 className="rounded-xl bg-red-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-red-500 transition-colors disabled:opacity-50"
               >
                 {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recurring Expense Delete Confirmation Modal */}
+      {recurringDeleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-md rounded-2xl border border-purple-500/20 dark:border-purple-500/30 bg-white dark:bg-slate-900 p-5 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-600 dark:text-purple-400">
+                <Repeat className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Delete Recurring Expense
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  &ldquo;{recurringDeleteTarget.category?.name || "Expense"}&rdquo; on{" "}
+                  <strong>{recurringDeleteTarget.date}</strong> ({formatCurrency(recurringDeleteTarget.amount)}) is part of a recurring series.
+                </p>
+              </div>
+            </div>
+
+            {/* Scope Selection Actions */}
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => handleDelete(recurringDeleteTarget.id)}
+                className="w-full text-left rounded-xl border border-slate-200 dark:border-slate-800 p-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-slate-900 dark:text-white">
+                    Delete this entry only
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Only remove the expense on {recurringDeleteTarget.date}
+                  </div>
+                </div>
+                <span className="text-xs text-slate-400 group-hover:text-red-500 dark:group-hover:text-red-400 font-semibold">
+                  Delete &rarr;
+                </span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() =>
+                  recurringDeleteTarget.recurringGroupId &&
+                  handleDeleteRecurring(
+                    recurringDeleteTarget.recurringGroupId,
+                    recurringDeleteTarget.date
+                  )
+                }
+                className="w-full text-left rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10 p-3 hover:bg-amber-500/15 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-amber-700 dark:text-amber-300">
+                    Delete this & all future entries
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Keep past records, stop recurrence from {recurringDeleteTarget.date} onwards
+                  </div>
+                </div>
+                <span className="text-xs text-amber-600 dark:text-amber-400 group-hover:text-amber-700 dark:group-hover:text-amber-300 font-semibold">
+                  Delete &rarr;
+                </span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() =>
+                  recurringDeleteTarget.recurringGroupId &&
+                  handleDeleteRecurring(recurringDeleteTarget.recurringGroupId)
+                }
+                className="w-full text-left rounded-xl border border-red-500/30 bg-red-500/5 dark:bg-red-500/10 p-3 hover:bg-red-500/15 transition-colors flex items-center justify-between group"
+              >
+                <div>
+                  <div className="text-xs font-bold text-red-600 dark:text-red-400">
+                    Delete entire series
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Erase all past and future instances in this recurring group
+                  </div>
+                </div>
+                <span className="text-xs text-red-600 dark:text-red-400 group-hover:text-red-700 dark:group-hover:text-red-300 font-semibold">
+                  Delete All &rarr;
+                </span>
+              </button>
+            </div>
+
+            <div className="flex items-center justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setRecurringDeleteTarget(null)}
+                disabled={isDeleting}
+                className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Cancel
               </button>
             </div>
           </div>

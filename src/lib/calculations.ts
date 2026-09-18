@@ -134,16 +134,17 @@ export function computeCategoryBudgetProgress(
     }
 
     const spentTotal = normalSpent + oneTimeSpent;
-    const remainingAmount = Number((budgetAmount - spentTotal).toFixed(2));
+    // One-time expenses do not count towards the category budget:
+    const remainingAmount = Number((budgetAmount - normalSpent).toFixed(2));
     const percentageUsed =
       budgetAmount > 0
-        ? Number(((spentTotal / budgetAmount) * 100).toFixed(1))
+        ? Number(((normalSpent / budgetAmount) * 100).toFixed(1))
         : 0;
 
     let status: BudgetStatus = "on_track";
     let statusLabel = "On Track";
 
-    if (spentTotal > budgetAmount) {
+    if (normalSpent > budgetAmount) {
       status = "over_spent";
       statusLabel = "Over Spent";
     } else if (
