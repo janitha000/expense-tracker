@@ -2,8 +2,17 @@
 
 @layer base {
   :root {
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    --card-bg: #ffffff;
+    --card-border: #e2e8f0;
+  }
+
+  .dark {
     --background: #090d16;
     --foreground: #f8fafc;
+    --card-bg: #0f172a;
+    --card-border: #1e293b;
   }
 
   body {
@@ -13,6 +22,7 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
     user-select: none;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   input, textarea, select {
@@ -29,7 +39,7 @@
   padding-top: env(safe-area-inset-top, 0.75rem);
 }
 
-/* Custom modern scrollbar for categories and modals */
+/* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -40,10 +50,18 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #94a3b8;
   border-radius: 9999px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
 ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }

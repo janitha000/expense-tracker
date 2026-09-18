@@ -5,13 +5,16 @@ import { Navbar } from "@/components/layout/Navbar";
 import { BottomNav, NavTab } from "@/components/layout/BottomNav";
 import { AnalyticsDashboard } from "@/components/dashboard/AnalyticsDashboard";
 import { ExpenseList } from "@/components/expenses/ExpenseList";
+import { BudgetPage } from "@/components/budgets/BudgetPage";
 import { CategoryManager } from "@/components/categories/CategoryManager";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { ExpenseModal } from "@/components/expenses/ExpenseModal";
+import { PinLockScreen } from "@/components/auth/PinLockScreen";
+import { useAuth } from "@/context/AuthContext";
 import {
   Category,
   ExpenseWithCategory,
-  ParentType,
+  CategoryBudget,
 } from "@/lib/types";
 import { ExpenseFormData, CategoryFormData } from "@/lib/validators";
 import { DEFAULT_CATEGORIES, DEFAULT_BASELINE_BUDGET } from "@/lib/constants";
@@ -20,10 +23,12 @@ import { Loader2 } from "lucide-react";
 import confetti from "canvas-confetti";
 
 export default function Home() {
+  const { isLocked, isSettingUpPin, closePinSetup } = useAuth();
   const [activeTab, setActiveTab] = useState<NavTab>("dashboard");
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
   const [allExpenses, setAllExpenses] = useState<ExpenseWithCategory[]>([]);
+  const [categoryBudgets, setCategoryBudgets] = useState<CategoryBudget[]>([]);
   const [baselineBudget, setBaselineBudget] = useState<number>(DEFAULT_BASELINE_BUDGET);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isLiveDb, setIsLiveDb] = useState<boolean>(false);
@@ -58,12 +63,21 @@ export default function Home() {
         }
       }
 
-      // 3. Fetch budget for the selected month
+      // 3. Fetch monthly baseline budget
       const budgetRes = await fetch(`/api/budgets?month=${monthKey}`);
       if (budgetRes.ok) {
         const budgetData = await budgetRes.json();
         if (budgetData?.baselineAmount) {
           setBaselineBudget(Number(budgetData.baselineAmount));
+        }
+      }
+
+      // 4. Fetch category budgets for the selected month
+      const catBudgetsRes = await fetch(`/api/category-budgets?month=${monthKey}`);
+      if (catBudgetsRes.ok) {
+        const catBudgetData = await catBudgetsRes.json();
+        if (Array.isArray(catBudgetData)) {
+          setCategoryBudgets(catBudgetData);
         }
       }
     } catch (err) {
@@ -93,7 +107,6 @@ export default function Home() {
     expenseId?: string
   ) => {
     if (expenseId) {
-      // Update
       const res = await fetch(`/api/expenses/${expenseId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -108,7 +121,6 @@ export default function Home() {
         prev.map((e) => (e.id === expenseId ? updated : e))
       );
     } else {
-      // Create
       const res = await fetch("/api/expenses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -121,7 +133,6 @@ export default function Home() {
       const created = await res.json();
       setAllExpenses((prev) => [created, ...prev]);
 
-      // Trigger subtle celebratory confetti if under budget
       if (data.parentType === "normal") {
         confetti({ particleCount: 30, spread: 50, origin: { y: 0.9 } });
       }
@@ -163,9 +174,10 @@ export default function Home() {
     }
     setCategories((prev) => prev.filter((c) => c.id !== id));
     setAllExpenses((prev) => prev.filter((e) => e.categoryId !== id));
+    setCategoryBudgets((prev) => prev.filter((cb) => cb.categoryId !== id));
   };
 
-  // Update Baseline Budget
+  // Update Baseline Monthly Budget
   const handleUpdateBudget = async (newBudget: number) => {
     const res = await fetch("/api/budgets", {
       method: "POST",
@@ -177,6 +189,34 @@ export default function Home() {
       throw new Error(err.error || "Failed to update budget");
     }
     setBaselineBudget(newBudget);
+  };
+
+  // Update Individual Category Budget
+  const handleUpdateCategoryBudget = async (
+    categoryId: string,
+    newAmount: number
+  ) => {
+    const res = await fetch("/api/category-budgets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        month: monthKey,
+        categoryId,
+        budgetAmount: newAmount,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to update category budget");
+    }
+    const updated = await res.json();
+    setCategoryBudgets((prev) => {
+      const exists = prev.some((cb) => cb.categoryId === categoryId);
+      if (exists) {
+        return prev.map((cb) => (cb.categoryId === categoryId ? updated : cb));
+      }
+      return [...prev, updated];
+    });
   };
 
   // Reset & Re-seed Data
@@ -198,8 +238,13 @@ export default function Home() {
     setIsExpenseModalOpen(true);
   };
 
+  // If locked, render PIN unlock overlay
+  if (isLocked) {
+    return <PinLockScreen mode="unlock" />;
+  }
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#090d16] text-slate-100 pb-16">
+    <div className="min-h-screen flex flex-col bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 pb-16 transition-colors duration-200">
       {/* Top Navigation Bar */}
       <Navbar
         currentDate={currentDate}
@@ -213,7 +258,7 @@ export default function Home() {
         {isLoading ? (
           <div className="flex h-64 items-center justify-center gap-3 text-slate-400">
             <Loader2 className="h-6 w-6 animate-spin text-blue-400" />
-            <span className="text-sm font-medium">Loading your expenses...</span>
+            <span className="text-sm font-medium">Loading your budget data...</span>
           </div>
         ) : (
           <>
@@ -234,6 +279,17 @@ export default function Home() {
                 onEditExpense={handleOpenEdit}
                 onDeleteExpense={handleDeleteExpense}
                 onOpenAddExpense={handleOpenAdd}
+              />
+            )}
+
+            {activeTab === "budgets" && (
+              <BudgetPage
+                categories={categories}
+                expenses={currentMonthExpenses}
+                categoryBudgets={categoryBudgets}
+                currentDate={currentDate}
+                baselineBudget={baselineBudget}
+                onUpdateCategoryBudget={handleUpdateCategoryBudget}
               />
             )}
 
@@ -267,6 +323,11 @@ export default function Home() {
         onSave={handleSaveExpense}
         defaultDate={currentDate}
       />
+
+      {/* PIN Setup Modal */}
+      {isSettingUpPin && (
+        <PinLockScreen mode="setup" onCloseSetup={closePinSetup} />
+      )}
 
       {/* Bottom Navigation */}
       <BottomNav

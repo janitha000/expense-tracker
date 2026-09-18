@@ -5,12 +5,14 @@ import {
   isYesterday,
   getDaysInMonth,
   subMonths,
-  startOfMonth,
-  endOfMonth,
   isSameMonth,
   getDate,
 } from "date-fns";
 import {
+  Category,
+  CategoryBudget,
+  CategoryBudgetProgress,
+  BudgetStatus,
   ExpenseWithCategory,
   ParentType,
   KPISummary,
@@ -19,7 +21,7 @@ import {
   DailyBurnPoint,
   DayGroupedExpenses,
 } from "./types";
-import { DEFAULT_BASELINE_BUDGET } from "./constants";
+import { DEFAULT_BASELINE_BUDGET, DEFAULT_CATEGORY_BUDGET_MAP } from "./constants";
 
 /**
  * Calculates KPI metrics isolating Normal vs. One-Time spending and MoM changes.
@@ -89,6 +91,110 @@ export function computeKPISummary(
 }
 
 /**
+ * Evaluates budget progress and health status for each category.
+ */
+export function computeCategoryBudgetProgress(
+  categories: Category[],
+  currentMonthExpenses: ExpenseWithCategory[],
+  categoryBudgets: CategoryBudget[],
+  targetDate: Date = new Date()
+): CategoryBudgetProgress[] {
+  const now = new Date();
+  const isCurrentActiveMonth = isSameMonth(targetDate, now);
+  const daysInMonth = getDaysInMonth(targetDate);
+  const currentDay = isCurrentActiveMonth ? getDate(now) : daysInMonth;
+  const expectedPacePercentage = Number(((currentDay / daysInMonth) * 100).toFixed(1));
+  const daysRemainingInMonth = Math.max(1, daysInMonth - currentDay + 1);
+
+  const budgetMap = new Map<string, number>();
+  for (const cb of categoryBudgets) {
+    budgetMap.set(cb.categoryId, Number(cb.budgetAmount) || 0);
+  }
+
+  const progressList: CategoryBudgetProgress[] = [];
+
+  for (const cat of categories) {
+    const budgetAmount =
+      budgetMap.get(cat.id) ?? (DEFAULT_CATEGORY_BUDGET_MAP[cat.name] || 25000);
+
+    const catExpenses = currentMonthExpenses.filter(
+      (e) => e.categoryId === cat.id || e.category?.id === cat.id
+    );
+
+    let normalSpent = 0;
+    let oneTimeSpent = 0;
+
+    for (const exp of catExpenses) {
+      const amt = Number(exp.amount) || 0;
+      if (exp.parentType === "one_time") {
+        oneTimeSpent += amt;
+      } else {
+        normalSpent += amt;
+      }
+    }
+
+    const spentTotal = normalSpent + oneTimeSpent;
+    const remainingAmount = Number((budgetAmount - spentTotal).toFixed(2));
+    const percentageUsed =
+      budgetAmount > 0
+        ? Number(((spentTotal / budgetAmount) * 100).toFixed(1))
+        : 0;
+
+    let status: BudgetStatus = "on_track";
+    let statusLabel = "On Track";
+
+    if (spentTotal > budgetAmount) {
+      status = "over_spent";
+      statusLabel = "Over Spent";
+    } else if (
+      percentageUsed >= 85 ||
+      (percentageUsed > expectedPacePercentage + 15 && percentageUsed > 40)
+    ) {
+      status = "caution";
+      statusLabel = "Caution";
+    } else {
+      status = "on_track";
+      statusLabel = "On Track";
+    }
+
+    const dailyRecommendedRemaining =
+      remainingAmount > 0
+        ? Number((remainingAmount / daysRemainingInMonth).toFixed(2))
+        : 0;
+
+    progressList.push({
+      categoryId: cat.id,
+      category: cat,
+      budgetAmount,
+      spentTotal: Number(spentTotal.toFixed(2)),
+      normalSpent: Number(normalSpent.toFixed(2)),
+      oneTimeSpent: Number(oneTimeSpent.toFixed(2)),
+      remainingAmount,
+      percentageUsed,
+      expectedPacePercentage,
+      status,
+      statusLabel,
+      dailyRecommendedRemaining,
+      daysRemainingInMonth,
+    });
+  }
+
+  // Sort: Over Spent first, then Caution, then On Track, then highest percentageUsed
+  const statusOrder: Record<BudgetStatus, number> = {
+    over_spent: 0,
+    caution: 1,
+    on_track: 2,
+  };
+
+  return progressList.sort((a, b) => {
+    if (statusOrder[a.status] !== statusOrder[b.status]) {
+      return statusOrder[a.status] - statusOrder[b.status];
+    }
+    return b.percentageUsed - a.percentageUsed;
+  });
+}
+
+/**
  * Aggregates expenses by category with optional parent_type filter.
  */
 export function computeCategoryBreakdown(
@@ -151,7 +257,6 @@ export function computeCategoryBreakdown(
     });
   }
 
-  // Sort descending by total amount
   return result.sort((a, b) => b.total - a.total);
 }
 
@@ -210,7 +315,6 @@ export function computeDailyBurnRate(
   const isCurrentActiveMonth = isSameMonth(targetDate, now);
   const maxDayToRender = isCurrentActiveMonth ? getDate(now) : daysInMonth;
 
-  // Map daily amounts
   const dailyMap = new Map<number, { normal: number; oneTime: number }>();
   for (let d = 1; d <= daysInMonth; d++) {
     dailyMap.set(d, { normal: 0, oneTime: 0 });
@@ -241,7 +345,6 @@ export function computeDailyBurnRate(
     const dailyOneTime = entry.oneTime;
     const dailyTotal = dailyNormal + dailyOneTime;
 
-    // Ideal linear budget run-rate
     const idealBaseline = Number(((baselineBudget / daysInMonth) * day).toFixed(2));
     const padDay = day < 10 ? `0${day}` : `${day}`;
     const dateStr = `${monthKey}-${padDay}`;
@@ -261,7 +364,6 @@ export function computeDailyBurnRate(
         idealBaseline,
       });
     } else {
-      // Future days in current month - project ideal baseline
       burnPoints.push({
         day,
         date: dateStr,
@@ -284,7 +386,6 @@ export function computeDailyBurnRate(
 export function groupExpensesByDate(
   expenses: ExpenseWithCategory[]
 ): DayGroupedExpenses[] {
-  // Sort descending by date, then by createdAt
   const sorted = [...expenses].sort((a, b) => {
     if (b.date !== a.date) {
       return b.date.localeCompare(a.date);

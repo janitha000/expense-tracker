@@ -7,7 +7,6 @@ import {
   DEFAULT_BASELINE_BUDGET,
   DEFAULT_CATEGORY_BUDGET_MAP,
 } from "@/lib/constants";
-import { generateSeedExpenses } from "./seed-data";
 import {
   Category,
   Expense,
@@ -29,7 +28,7 @@ export function isLiveDatabase(): boolean {
 // In-Memory fallback store for demo mode & local testing when DATABASE_URL is not provided
 class InMemoryStore {
   private categories: Category[] = [...DEFAULT_CATEGORIES];
-  private expenses: Expense[] = generateSeedExpenses(DEFAULT_CATEGORIES);
+  private expenses: Expense[] = []; // Clean initial state with 0 dummy expenses
   private budgets: MonthlyBudget[] = [];
   private categoryBudgets: CategoryBudget[] = [];
 
@@ -43,7 +42,6 @@ class InMemoryStore {
       createdAt: now.toISOString(),
     });
 
-    // Seed default category budgets
     this.ensureCategoryBudgetsForMonth(currentMonth);
   }
 
@@ -198,6 +196,10 @@ class InMemoryStore {
     return this.expenses.length < initialLen;
   }
 
+  public clearAllExpenses(): void {
+    this.expenses = [];
+  }
+
   public getBudget(month: string): MonthlyBudget | undefined {
     return this.budgets.find((b) => b.month === month);
   }
@@ -244,9 +246,9 @@ class InMemoryStore {
     }
   }
 
-  public resetToSeed(): void {
+  public resetToClean(): void {
     this.categories = [...DEFAULT_CATEGORIES];
-    this.expenses = generateSeedExpenses(DEFAULT_CATEGORIES);
+    this.expenses = []; // Zero expenses
     this.categoryBudgets = [];
     const currentMonth = new Date().toISOString().substring(0, 7);
     this.ensureCategoryBudgetsForMonth(currentMonth);
@@ -488,6 +490,17 @@ export const dataLayer = {
     return memoryStore.deleteExpense(id);
   },
 
+  async clearAllExpenses(): Promise<void> {
+    if (db) {
+      try {
+        await db.delete(schema.expenses);
+      } catch (err) {
+        console.error("Neon DB clear expenses error:", err);
+      }
+    }
+    memoryStore.clearAllExpenses();
+  },
+
   async getBudget(month: string): Promise<MonthlyBudget | null> {
     if (db) {
       try {
@@ -550,7 +563,6 @@ export const dataLayer = {
           }));
         }
 
-        // Auto-seed category budgets for this month if none exist
         const allCats = await this.getCategories();
         for (const cat of allCats) {
           const defaultAmt = DEFAULT_CATEGORY_BUDGET_MAP[cat.name] || 25000;
@@ -630,6 +642,7 @@ export const dataLayer = {
         await db
           .insert(schema.categories)
           .values({
+            id: cat.id,
             name: cat.name,
             icon: cat.icon,
             color: cat.color,
@@ -640,27 +653,12 @@ export const dataLayer = {
     }
   },
 
-  async seedFullDatabase(): Promise<void> {
+  async resetCleanDatabase(): Promise<void> {
     if (db) {
+      await this.clearAllExpenses();
       await this.seedCategories();
-      const allCats = await db.select().from(schema.categories);
-      const catList: Category[] = allCats.map((c) => ({
-        ...c,
-        createdAt: c.createdAt.toISOString(),
-      }));
-      const seedExp = generateSeedExpenses(catList);
-
-      for (const exp of seedExp) {
-        await db.insert(schema.expenses).values({
-          amount: typeof exp.amount === "number" ? exp.amount.toFixed(2) : exp.amount,
-          date: exp.date,
-          categoryId: exp.categoryId,
-          parentType: exp.parentType,
-          note: exp.note,
-        });
-      }
     } else {
-      memoryStore.resetToSeed();
+      memoryStore.resetToClean();
     }
   },
 };

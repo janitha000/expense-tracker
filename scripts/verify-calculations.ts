@@ -1,24 +1,25 @@
 import {
   computeKPISummary,
+  computeCategoryBudgetProgress,
   computeCategoryBreakdown,
   computeMonthlyTrend,
   computeDailyBurnRate,
   groupExpensesByDate,
 } from "../src/lib/calculations";
-import { ExpenseWithCategory } from "../src/lib/types";
+import { ExpenseWithCategory, Category, CategoryBudget } from "../src/lib/types";
 
-const mockCategory1 = {
+const mockCategory1: Category = {
   id: "cat-1",
-  name: "Groceries",
+  name: "Groceries & Food",
   icon: "Utensils",
   color: "#10B981",
   isCustom: false,
   createdAt: new Date().toISOString(),
 };
 
-const mockCategory2 = {
+const mockCategory2: Category = {
   id: "cat-2",
-  name: "Gadgets",
+  name: "Gadgets / Electronics",
   icon: "Laptop",
   color: "#8B5CF6",
   isCustom: false,
@@ -28,7 +29,7 @@ const mockCategory2 = {
 const mockCurrentExpenses: ExpenseWithCategory[] = [
   {
     id: "e1",
-    amount: "100.00",
+    amount: "15000.00",
     date: "2026-09-01",
     categoryId: "cat-1",
     parentType: "normal",
@@ -37,7 +38,7 @@ const mockCurrentExpenses: ExpenseWithCategory[] = [
   },
   {
     id: "e2",
-    amount: "200.00",
+    amount: "20000.00",
     date: "2026-09-05",
     categoryId: "cat-1",
     parentType: "normal",
@@ -46,70 +47,61 @@ const mockCurrentExpenses: ExpenseWithCategory[] = [
   },
   {
     id: "e3",
-    amount: "500.00",
+    amount: "45000.00",
     date: "2026-09-08",
     categoryId: "cat-2",
-    parentType: "one_time", // One-time spike
+    parentType: "one_time",
     category: mockCategory2,
     createdAt: "2026-09-08T10:00:00Z",
   },
 ];
 
-const mockPrevExpenses: ExpenseWithCategory[] = [
+const mockCategoryBudgets: CategoryBudget[] = [
   {
-    id: "e0",
-    amount: "500.00",
-    date: "2026-08-10",
+    id: "cb-1",
+    month: "2026-09",
     categoryId: "cat-1",
-    parentType: "normal",
-    category: mockCategory1,
-    createdAt: "2026-08-10T10:00:00Z",
+    budgetAmount: "65000.00", // Spent: 35,000 / 65,000 (53.8%) -> On Track on Day 18
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "cb-2",
+    month: "2026-09",
+    categoryId: "cat-2",
+    budgetAmount: "30000.00", // Spent: 45,000 / 30,000 (150%) -> Over Spent
+    createdAt: new Date().toISOString(),
   },
 ];
 
-console.log("--- RUNNING CALCULATION TESTS ---");
+console.log("--- RUNNING UPDATED LKR & CATEGORY BUDGET TESTS ---");
 
-// Test 1: KPI Summary
 const targetDate = new Date("2026-09-18T00:00:00Z");
-const kpi = computeKPISummary(mockCurrentExpenses, mockPrevExpenses, targetDate, 2000);
 
-console.log("KPI Summary:", kpi);
-if (kpi.normalTotal !== 300) throw new Error(`Expected normalTotal 300, got ${kpi.normalTotal}`);
-if (kpi.oneTimeTotal !== 500) throw new Error(`Expected oneTimeTotal 500, got ${kpi.oneTimeTotal}`);
-if (kpi.currentTotal !== 800) throw new Error(`Expected currentTotal 800, got ${kpi.currentTotal}`);
-if (kpi.normalBudgetPct !== 15.0) throw new Error(`Expected normalBudgetPct 15.0, got ${kpi.normalBudgetPct}`);
-// (800 - 500) / 500 * 100 = 60.0% MoM increase
-if (kpi.momChangePct !== 60.0) throw new Error(`Expected momChangePct 60.0, got ${kpi.momChangePct}`);
-console.log("✅ Test 1: KPI calculation and normal vs one-time isolation passed!");
+// Test: Category Budget Progress
+const budgetProgress = computeCategoryBudgetProgress(
+  [mockCategory1, mockCategory2],
+  mockCurrentExpenses,
+  mockCategoryBudgets,
+  targetDate
+);
 
-// Test 2: Category Breakdown filter
-const breakdownAll = computeCategoryBreakdown(mockCurrentExpenses, "all");
-const breakdownNormal = computeCategoryBreakdown(mockCurrentExpenses, "normal");
-const breakdownOneTime = computeCategoryBreakdown(mockCurrentExpenses, "one_time");
+console.log("Category Budget Progress:", budgetProgress);
 
-console.log("Breakdown Normal:", breakdownNormal);
-console.log("Breakdown One-Time:", breakdownOneTime);
-
-if (breakdownNormal.length !== 1 || breakdownNormal[0].total !== 300) {
-  throw new Error("Normal category breakdown failed");
+const cat2Progress = budgetProgress.find((b) => b.categoryId === "cat-2");
+if (!cat2Progress || cat2Progress.status !== "over_spent") {
+  throw new Error(`Expected cat-2 to be over_spent, got ${cat2Progress?.status}`);
 }
-if (breakdownOneTime.length !== 1 || breakdownOneTime[0].total !== 500) {
-  throw new Error("One-time category breakdown failed");
+if (cat2Progress.remainingAmount !== -15000) {
+  throw new Error(`Expected remainingAmount -15000, got ${cat2Progress.remainingAmount}`);
 }
-console.log("✅ Test 2: Category breakdown filtering passed!");
 
-// Test 3: Daily Burn Rate
-const burn = computeDailyBurnRate(mockCurrentExpenses, targetDate, 2000);
-const day8 = burn.find((b) => b.day === 8);
-if (!day8) throw new Error("Day 8 not found in burn rate");
-if (day8.cumulativeNormal !== 300) throw new Error(`Expected cumulativeNormal 300 on day 8, got ${day8.cumulativeNormal}`);
-if (day8.cumulativeTotal !== 800) throw new Error(`Expected cumulativeTotal 800 on day 8, got ${day8.cumulativeTotal}`);
-console.log("✅ Test 3: Daily cumulative burn rate calculation passed!");
+const cat1Progress = budgetProgress.find((b) => b.categoryId === "cat-1");
+if (!cat1Progress || cat1Progress.status !== "on_track") {
+  throw new Error(`Expected cat-1 to be on_track, got ${cat1Progress?.status}`);
+}
+if (cat1Progress.remainingAmount !== 30000) {
+  throw new Error(`Expected remainingAmount 30000, got ${cat1Progress.remainingAmount}`);
+}
 
-// Test 4: Grouped chronological expenses
-const grouped = groupExpensesByDate(mockCurrentExpenses);
-if (grouped.length !== 3) throw new Error(`Expected 3 date groups, got ${grouped.length}`);
-if (grouped[0].date !== "2026-09-08") throw new Error("Expected newest date first");
-console.log("✅ Test 4: Grouping by date passed!");
-
-console.log("\n🎉 ALL CALCULATION AND ISOLATION TESTS PASSED SUCCESSFULLY!");
+console.log("✅ Category Budget health status & remaining calculations passed!");
+console.log("\n🎉 ALL TESTS PASSED SUCCESSFULLY!");

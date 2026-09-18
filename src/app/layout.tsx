@@ -2,10 +2,12 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/pwa/ServiceWorkerRegister";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
+import { AuthProvider } from "@/context/AuthContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 
 export const metadata: Metadata = {
   title: "BudgetFlow - Smart Expense & Budget Tracker PWA",
-  description: "Responsive, mobile-first Personal Expense & Budget Tracker PWA with Normal vs One-Time expense isolation and Neon PostgreSQL",
+  description: "Responsive, mobile-first Personal Expense & Budget Tracker PWA with Normal vs One-Time expense isolation, Category Budgets, and Dark/Light Themes",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -36,11 +38,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-[#090d16] text-slate-100 antialiased selection:bg-blue-500 selection:text-white font-sans overflow-x-hidden">
-        <ServiceWorkerRegister />
-        {children}
-        <InstallPrompt />
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className="min-h-screen bg-[#f8fafc] dark:bg-[#090d16] text-slate-900 dark:text-slate-100 antialiased selection:bg-blue-500 selection:text-white font-sans overflow-x-hidden transition-colors duration-200">
+        <ThemeProvider>
+          <AuthProvider>
+            <ServiceWorkerRegister />
+            {children}
+            <InstallPrompt />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

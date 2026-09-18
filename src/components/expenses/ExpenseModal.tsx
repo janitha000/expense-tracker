@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Calendar, DollarSign, Tag, FileText, Check, AlertCircle, Sparkles, RefreshCw } from "lucide-react";
+import { X, Check, AlertCircle, Sparkles, RefreshCw } from "lucide-react";
 import { Category, ExpenseWithCategory, ParentType } from "@/lib/types";
 import { expenseSchema, ExpenseFormData } from "@/lib/validators";
 import { DynamicIcon } from "@/components/ui/DynamicIcon";
@@ -95,24 +95,24 @@ export function ExpenseModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
       <div
-        className="w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+        className="w-full max-w-lg rounded-t-3xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col transition-colors"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4 bg-slate-950/40">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-6 py-4 bg-slate-50 dark:bg-slate-950/40">
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
               {editingExpense ? "Edit Expense" : "Add New Expense"}
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {editingExpense
                 ? "Update expense details"
-                : "Record a normal daily or one-time expense"}
+                : "Record a normal daily or one-time expense in LKR"}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="rounded-xl p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+            className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -121,7 +121,7 @@ export function ExpenseModal({
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
           {errors.form && (
-            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-400 flex items-center gap-2">
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500 dark:text-red-400 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{errors.form}</span>
             </div>
@@ -129,52 +129,52 @@ export function ExpenseModal({
 
           {/* Amount Input */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-              Amount ($)
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+              Amount (Rs.)
             </label>
             <div className="relative">
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400">
-                <DollarSign className="h-6 w-6 text-blue-400" />
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-base font-bold text-blue-600 dark:text-blue-400">
+                Rs.
               </div>
               <input
                 type="number"
-                step="0.01"
-                placeholder="0.00"
+                step="1"
+                placeholder="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 autoFocus
-                className={`w-full rounded-2xl border bg-slate-950/70 py-3.5 pl-12 pr-4 text-2xl font-bold text-white placeholder-slate-600 focus:outline-none focus:ring-2 transition-all ${
+                className={`w-full rounded-2xl border bg-slate-50 dark:bg-slate-950/70 py-3.5 pl-14 pr-4 text-2xl font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:ring-2 transition-all ${
                   errors.amount
                     ? "border-red-500 focus:ring-red-500/30"
-                    : "border-slate-800 focus:border-blue-500 focus:ring-blue-500/30"
+                    : "border-slate-200 dark:border-slate-800 focus:border-blue-500 focus:ring-blue-500/30"
                 }`}
               />
             </div>
             {errors.amount && (
-              <p className="mt-1 text-xs text-red-400">{errors.amount}</p>
+              <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.amount}</p>
             )}
           </div>
 
           {/* Parent Type Toggle: Normal vs One-Time */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Expense Classification
               </label>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
                 {parentType === "normal"
-                  ? "Recurring / Essential run-rate"
+                  ? "Recurring / Baseline run-rate"
                   : "One-off / Discretionary spike"}
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-800 bg-slate-950 p-1.5">
+            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 p-1.5">
               <button
                 type="button"
                 onClick={() => setParentType("normal")}
                 className={`flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 text-xs font-semibold transition-all ${
                   parentType === "normal"
                     ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20"
-                    : "text-slate-400 hover:text-slate-200"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                 }`}
               >
                 <div className="flex h-2 w-2 rounded-full bg-blue-300" />
@@ -188,7 +188,7 @@ export function ExpenseModal({
                 className={`flex items-center justify-center gap-2 rounded-xl py-2.5 px-3 text-xs font-semibold transition-all ${
                   parentType === "one_time"
                     ? "bg-gradient-to-r from-amber-600 to-pink-600 text-white shadow-md shadow-amber-500/20"
-                    : "text-slate-400 hover:text-slate-200"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                 }`}
               >
                 <Sparkles className="h-3.5 w-3.5 text-amber-300" />
@@ -200,10 +200,10 @@ export function ExpenseModal({
 
           {/* Category Selector Grid */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-2 uppercase tracking-wider">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2 uppercase tracking-wider">
               Category
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 rounded-2xl border border-slate-800/80 bg-slate-950/40">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 rounded-2xl border border-slate-200 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40">
               {categories.map((cat) => {
                 const isSelected = categoryId === cat.id;
                 return (
@@ -213,8 +213,8 @@ export function ExpenseModal({
                     onClick={() => setCategoryId(cat.id)}
                     className={`flex items-center gap-2 rounded-xl p-2 text-left transition-all border ${
                       isSelected
-                        ? "border-blue-500 bg-blue-500/15 text-white shadow-sm ring-1 ring-blue-500/50"
-                        : "border-slate-800 bg-slate-900/60 text-slate-300 hover:bg-slate-800 hover:text-white"
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-500/15 text-blue-900 dark:text-white shadow-sm ring-1 ring-blue-500"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                     }`}
                   >
                     <div
@@ -229,28 +229,28 @@ export function ExpenseModal({
               })}
             </div>
             {errors.categoryId && (
-              <p className="mt-1 text-xs text-red-400">{errors.categoryId}</p>
+              <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.categoryId}</p>
             )}
           </div>
 
           {/* Date Picker + Quick Buttons */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Date
               </label>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setDateShortcut("today")}
-                  className="rounded-lg bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-300 hover:bg-slate-700 transition-colors"
+                  className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   Today
                 </button>
                 <button
                   type="button"
                   onClick={() => setDateShortcut("yesterday")}
-                  className="rounded-lg bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-300 hover:bg-slate-700 transition-colors"
+                  className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   Yesterday
                 </button>
@@ -261,23 +261,23 @@ export function ExpenseModal({
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/70 py-2.5 px-3.5 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 py-2.5 px-3.5 text-sm text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
               />
             </div>
-            {errors.date && <p className="mt-1 text-xs text-red-400">{errors.date}</p>}
+            {errors.date && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.date}</p>}
           </div>
 
           {/* Notes Input */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
               Note (Optional)
             </label>
             <input
               type="text"
-              placeholder="e.g. Weekly grocery haul, flight tickets..."
+              placeholder="e.g. Supermarket shopping, fuel refill..."
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="w-full rounded-xl border border-slate-800 bg-slate-950/70 py-2.5 px-3.5 text-sm text-white placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 py-2.5 px-3.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
             />
           </div>
 

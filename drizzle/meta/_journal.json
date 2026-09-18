@@ -8,6 +8,13 @@
       "when": 1789716904196,
       "tag": "0000_normal_king_cobra",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789718708934,
+      "tag": "0001_typical_madelyne_pryor",
+      "breakpoints": true
     }
   ]
 }
