@@ -347,6 +347,7 @@ export function computeDailyBurnRate(
       ? totalNormalSoFar / maxDayToRender
       : baselineBudget / daysInMonth;
 
+  const baseStartingAmount = Math.min(50000, baselineBudget * 0.5);
   const burnPoints: DailyBurnPoint[] = [];
   let runningNormal = 0;
 
@@ -354,7 +355,15 @@ export function computeDailyBurnRate(
     const dailyNormal = dailyNormalMap.get(day) || 0;
     const padDay = day < 10 ? `0${day}` : `${day}`;
     const dateStr = `${monthKey}-${padDay}`;
-    const targetBudgetPace = Number(((baselineBudget / daysInMonth) * day).toFixed(2));
+    const targetBudgetPace =
+      daysInMonth > 1
+        ? Number(
+            (
+              baseStartingAmount +
+              ((baselineBudget - baseStartingAmount) / (daysInMonth - 1)) * (day - 1)
+            ).toFixed(2)
+          )
+        : baselineBudget;
 
     if (day < maxDayToRender) {
       runningNormal += dailyNormal;
