@@ -220,7 +220,6 @@ export function ExpenseModal({
                 placeholder="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                autoFocus
                 className={`w-full rounded-2xl border bg-slate-50 dark:bg-slate-950/70 py-3 pl-14 pr-4 text-2xl font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:ring-2 transition-all ${
                   errors.amount
                     ? "border-red-500 focus:ring-red-500/30"
