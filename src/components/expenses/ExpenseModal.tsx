@@ -10,6 +10,7 @@ import {
   RecurringExpenseFormData,
 } from "@/lib/validators";
 import { DynamicIcon } from "@/components/ui/DynamicIcon";
+import { InlineDatePicker } from "@/components/ui/InlineDatePicker";
 import { format, subDays, addMonths, parseISO } from "date-fns";
 import { formatCurrency } from "@/lib/utils";
 
@@ -341,38 +342,12 @@ export function ExpenseModal({
               </div>
             )}
 
-            {/* Date Pickers */}
+            {/* 1-Touch Auto-Select Calendar (No OK button required) */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Calendar className="h-3.5 w-3.5 text-blue-500" />
-                  <span>{isRecurring ? "4. Start Date" : "4. Date"}</span>
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setDateShortcut("today")}
-                    className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    Today
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDateShortcut("yesterday")}
-                    className="rounded-lg bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[10px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    Yesterday
-                  </button>
-                </div>
-              </div>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/70 py-2.5 px-3.5 text-xs sm:text-sm text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
-                />
-              </div>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
+                {isRecurring ? "4. Start Date" : "4. Date"}
+              </label>
+              <InlineDatePicker value={date} onChange={setDate} />
               {errors.date && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.date}</p>}
               {errors.startDate && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.startDate}</p>}
             </div>
