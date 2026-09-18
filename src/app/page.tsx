@@ -80,6 +80,13 @@ export default function Home() {
           setCategoryBudgets(catBudgetData);
         }
       }
+
+      // 5. Fetch DB connection status
+      const statusRes = await fetch("/api/status");
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        setIsLiveDb(statusData.isConnected === true);
+      }
     } catch (err) {
       console.error("Error loading application data:", err);
     } finally {

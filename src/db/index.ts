@@ -16,9 +16,9 @@ import {
   ParentType,
 } from "@/lib/types";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_PRISMA_URL;
 
-// Live Neon DB instance if DATABASE_URL is set
+// Live Neon DB instance if database URL is set
 export const db = databaseUrl ? drizzle(neon(databaseUrl), { schema }) : null;
 
 export function isLiveDatabase(): boolean {
@@ -262,11 +262,73 @@ if (process.env.NODE_ENV !== "production") {
   globalStore.__expenseStore = memoryStore;
 }
 
+let schemaInitialized = false;
+
+export async function ensureSchema(): Promise<void> {
+  if (schemaInitialized || !databaseUrl) return;
+  try {
+    const sql = neon(databaseUrl);
+    
+    // Create ENUM type if not exists
+    await sql`DO $$ BEGIN
+      CREATE TYPE "parent_type" AS ENUM('normal', 'one_time');
+    EXCEPTION
+      WHEN duplicate_object THEN null;
+    END $$;`;
+
+    // Create categories table
+    await sql`CREATE TABLE IF NOT EXISTS "categories" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "name" varchar(255) NOT NULL,
+      "icon" varchar(100) NOT NULL,
+      "color" varchar(50) NOT NULL,
+      "is_custom" boolean DEFAULT false NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`;
+
+    // Create expenses table
+    await sql`CREATE TABLE IF NOT EXISTS "expenses" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "amount" numeric(12, 2) NOT NULL,
+      "date" varchar(10) NOT NULL,
+      "category_id" uuid NOT NULL REFERENCES "categories"("id") ON DELETE CASCADE,
+      "parent_type" "parent_type" DEFAULT 'normal' NOT NULL,
+      "note" text,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`;
+
+    // Create monthly_budgets table
+    await sql`CREATE TABLE IF NOT EXISTS "monthly_budgets" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "month" varchar(7) NOT NULL UNIQUE,
+      "baseline_amount" numeric(12, 2) DEFAULT '300000.00' NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`;
+
+    // Create category_budgets table
+    await sql`CREATE TABLE IF NOT EXISTS "category_budgets" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "month" varchar(7) NOT NULL,
+      "category_id" uuid NOT NULL REFERENCES "categories"("id") ON DELETE CASCADE,
+      "budget_amount" numeric(12, 2) NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`;
+
+    // Create unique index
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS "category_budgets_month_category_idx" ON "category_budgets" ("month", "category_id");`;
+
+    schemaInitialized = true;
+  } catch (e) {
+    console.error("Auto schema initialization failed:", e);
+  }
+}
+
 // Unified Data Access Layer
 export const dataLayer = {
   async getCategories(): Promise<Category[]> {
     if (db) {
       try {
+        await ensureSchema();
         const results = await db.select().from(schema.categories);
         if (results.length === 0) {
           await this.seedCategories();
@@ -332,6 +394,7 @@ export const dataLayer = {
   }): Promise<ExpenseWithCategory[]> {
     if (db) {
       try {
+        await ensureSchema();
         const rows = await db.query.expenses.findMany({
           with: { category: true },
           orderBy: [desc(schema.expenses.date), desc(schema.expenses.createdAt)],
@@ -377,6 +440,7 @@ export const dataLayer = {
   }): Promise<ExpenseWithCategory> {
     if (db) {
       try {
+        await ensureSchema();
         const [inserted] = await db
           .insert(schema.expenses)
           .values({
@@ -504,6 +568,7 @@ export const dataLayer = {
   async getBudget(month: string): Promise<MonthlyBudget | null> {
     if (db) {
       try {
+        await ensureSchema();
         const result = await db.query.monthlyBudgets.findFirst({
           where: eq(schema.monthlyBudgets.month, month),
         });
@@ -523,6 +588,7 @@ export const dataLayer = {
   async setBudget(month: string, amount: number): Promise<MonthlyBudget> {
     if (db) {
       try {
+        await ensureSchema();
         const existing = await db.query.monthlyBudgets.findFirst({
           where: eq(schema.monthlyBudgets.month, month),
         });
@@ -551,6 +617,7 @@ export const dataLayer = {
   async getCategoryBudgets(month: string): Promise<CategoryBudget[]> {
     if (db) {
       try {
+        await ensureSchema();
         const rows = await db
           .select()
           .from(schema.categoryBudgets)
