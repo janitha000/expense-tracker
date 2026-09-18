@@ -248,7 +248,7 @@ export function AnalyticsDashboard({
                 dataKey="day"
                 stroke={isDark ? "#64748b" : "#94a3b8"}
                 tick={{ fontSize: 9 }}
-                tickFormatter={(val) => `D${val}`}
+                tickFormatter={(val) => `${val}`}
                 interval="preserveStartEnd"
               />
               <YAxis
