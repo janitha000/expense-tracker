@@ -352,6 +352,9 @@ export async function ensureSchema(): Promise<void> {
     // Create unique index
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS "category_budgets_month_category_idx" ON "category_budgets" ("month", "category_id");`;
 
+    // Remove legacy removed categories
+    await sql`DELETE FROM "categories" WHERE "name" = 'Investments / Savings' AND "is_custom" = false;`;
+
     schemaInitialized = true;
   } catch (e) {
     console.error("Auto schema initialization failed:", e);

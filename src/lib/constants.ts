@@ -55,14 +55,6 @@ export const DEFAULT_CATEGORIES = [
     isCustom: false,
     createdAt: new Date().toISOString(),
   },
-  {
-    id: "c8888888-8888-4888-8888-888888888888",
-    name: "Investments / Savings",
-    icon: "PiggyBank",
-    color: "#14B8A6",
-    isCustom: false,
-    createdAt: new Date().toISOString(),
-  },
 ];
 
 export const DEFAULT_CATEGORY_BUDGET_MAP: Record<string, number> = {
@@ -73,7 +65,6 @@ export const DEFAULT_CATEGORY_BUDGET_MAP: Record<string, number> = {
   "Healthcare": 20000,
   "Entertainment & Leisure": 25000,
   "Gadgets / Electronics": 20000,
-  "Investments / Savings": 40000,
 };
 
 export const AVAILABLE_ICONS = [
