@@ -349,6 +349,8 @@ export default function Home() {
               <ExpenseList
                 expenses={currentMonthExpenses}
                 categories={categories}
+                allExpenses={allExpenses}
+                currentDate={currentDate}
                 onEditExpense={handleOpenEdit}
                 onDeleteExpense={handleDeleteExpense}
                 onDeleteRecurring={handleDeleteRecurring}
@@ -378,6 +380,7 @@ export default function Home() {
             {activeTab === "settings" && (
               <SettingsView
                 baselineBudget={baselineBudget}
+                allExpenses={allExpenses}
                 onUpdateBudget={handleUpdateBudget}
                 onResetSeed={handleResetSeed}
                 isLiveDb={isLiveDb}

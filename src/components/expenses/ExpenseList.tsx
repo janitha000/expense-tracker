@@ -20,11 +20,27 @@ import {
   AlertTriangle,
   Layers,
   Repeat,
+  Download,
+  FileSpreadsheet,
+  FileJson,
+  CheckCircle2,
+  X,
 } from "lucide-react";
+import {
+  exportMonthlyExpenses,
+  exportYearlyExpenses,
+  exportAllExpensesJSON,
+  generateExpensesCSV,
+  triggerFileDownload,
+} from "@/lib/export";
+import confetti from "canvas-confetti";
+import { format } from "date-fns";
 
 interface ExpenseListProps {
   expenses: ExpenseWithCategory[];
   categories: Category[];
+  allExpenses?: ExpenseWithCategory[];
+  currentDate?: Date;
   onEditExpense: (expense: ExpenseWithCategory) => void;
   onDeleteExpense: (id: string) => Promise<void>;
   onDeleteRecurring?: (groupId: string, fromDate?: string) => Promise<void>;
@@ -34,6 +50,8 @@ interface ExpenseListProps {
 export function ExpenseList({
   expenses,
   categories,
+  allExpenses = [],
+  currentDate = new Date(),
   onEditExpense,
   onDeleteExpense,
   onDeleteRecurring,
@@ -45,6 +63,12 @@ export function ExpenseList({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [recurringDeleteTarget, setRecurringDeleteTarget] = useState<ExpenseWithCategory | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
+
+  const monthKey = format(currentDate, "yyyy-MM");
+  const yearKey = format(currentDate, "yyyy");
+  const formattedMonth = format(currentDate, "MMMM yyyy");
 
   // Filter expenses
   const filtered = expenses.filter((exp) => {
@@ -93,6 +117,52 @@ export function ExpenseList({
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleExportMonth = () => {
+    const dataToUse = allExpenses.length > 0 ? allExpenses : expenses;
+    const res = exportMonthlyExpenses(dataToUse, monthKey);
+    confetti({ particleCount: 35, spread: 50, origin: { y: 0.8 } });
+    setExportSuccessMsg(`Exported ${res.count} expenses (${formatCurrency(res.total)}) for ${formattedMonth}!`);
+    setTimeout(() => setExportSuccessMsg(null), 4000);
+    setIsExportModalOpen(false);
+  };
+
+  const handleExportYear = () => {
+    const dataToUse = allExpenses.length > 0 ? allExpenses : expenses;
+    const res = exportYearlyExpenses(dataToUse, yearKey);
+    confetti({ particleCount: 45, spread: 60, origin: { y: 0.8 } });
+    setExportSuccessMsg(`Exported ${res.count} expenses (${formatCurrency(res.total)}) for year ${yearKey}!`);
+    setTimeout(() => setExportSuccessMsg(null), 4000);
+    setIsExportModalOpen(false);
+  };
+
+  const handleExportFiltered = () => {
+    const csv = generateExpensesCSV(filtered, `Filtered Expenses - ${formattedMonth}`);
+    triggerFileDownload(csv, `expenses-filtered-${monthKey}.csv`);
+    confetti({ particleCount: 30, spread: 50, origin: { y: 0.8 } });
+    setExportSuccessMsg(`Exported ${filtered.length} filtered expenses!`);
+    setTimeout(() => setExportSuccessMsg(null), 4000);
+    setIsExportModalOpen(false);
+  };
+
+  const handleExportAll = () => {
+    const dataToUse = allExpenses.length > 0 ? allExpenses : expenses;
+    const csv = generateExpensesCSV(dataToUse, `All Expenses Backup`);
+    triggerFileDownload(csv, `expenses-all-time.csv`);
+    confetti({ particleCount: 50, spread: 70, origin: { y: 0.8 } });
+    setExportSuccessMsg(`Exported all ${dataToUse.length} historical expenses!`);
+    setTimeout(() => setExportSuccessMsg(null), 4000);
+    setIsExportModalOpen(false);
+  };
+
+  const handleExportJSON = () => {
+    const dataToUse = allExpenses.length > 0 ? allExpenses : expenses;
+    exportAllExpensesJSON(dataToUse);
+    confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
+    setExportSuccessMsg(`Exported full JSON backup of ${dataToUse.length} expenses!`);
+    setTimeout(() => setExportSuccessMsg(null), 4000);
+    setIsExportModalOpen(false);
   };
 
   return (
@@ -169,19 +239,39 @@ export function ExpenseList({
           </div>
         </div>
 
-        {/* Filter Summary */}
+        {/* Filter Summary & Export Button */}
         <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-2 text-[11px] text-slate-500 dark:text-slate-400">
-          <span>
-            Showing <strong className="text-slate-800 dark:text-slate-200">{filtered.length}</strong>{" "}
-            {filtered.length === 1 ? "expense" : "expenses"}
-          </span>
-          <span>
-            Total:{" "}
-            <strong className="text-blue-600 dark:text-blue-400 font-semibold text-xs">
-              {formatCurrency(totalFilteredAmount)}
-            </strong>
-          </span>
+          <div className="flex items-center gap-2">
+            <span>
+              Showing <strong className="text-slate-800 dark:text-slate-200">{filtered.length}</strong>{" "}
+              {filtered.length === 1 ? "expense" : "expenses"}
+            </span>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <span>
+              Total:{" "}
+              <strong className="text-blue-600 dark:text-blue-400 font-semibold text-xs">
+                {formatCurrency(totalFilteredAmount)}
+              </strong>
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/90 px-3 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-blue-600 dark:hover:text-blue-400 transition-all shadow-sm active:scale-98"
+            title="Export monthly & yearly data to CSV/Excel"
+          >
+            <Download className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+            <span>Export</span>
+          </button>
         </div>
+
+        {exportSuccessMsg && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2 animate-in fade-in duration-150">
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+            <span>{exportSuccessMsg}</span>
+          </div>
+        )}
       </div>
 
       {/* Empty State */}
@@ -464,6 +554,148 @@ export function ExpenseList({
                 className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Modal Dialog */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                  <Download className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Export Financial Data
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Download spreadsheets compatible with Excel, Google Sheets & Numbers
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsExportModalOpen(false)}
+                className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-white transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              {/* Option 1: Current Month */}
+              <button
+                type="button"
+                onClick={handleExportMonth}
+                className="w-full text-left rounded-xl border border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/20 p-3 hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-all flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                    <FileSpreadsheet className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span>Export Current Month CSV</span>
+                      <span className="text-[10px] bg-blue-500/20 text-blue-700 dark:text-blue-300 font-semibold px-1.5 py-0.2 rounded">
+                        {formattedMonth}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      All expenses recorded for {formattedMonth} (expenses-{monthKey}.csv)
+                    </div>
+                  </div>
+                </div>
+                <Download className="h-4 w-4 text-blue-500 group-hover:translate-y-0.5 transition-transform" />
+              </button>
+
+              {/* Option 2: Current Year */}
+              <button
+                type="button"
+                onClick={handleExportYear}
+                className="w-full text-left rounded-xl border border-purple-500/30 bg-purple-50/50 dark:bg-purple-950/20 p-3 hover:bg-purple-100/50 dark:hover:bg-purple-900/30 transition-all flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/15 text-purple-600 dark:text-purple-400">
+                    <Calendar className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span>Export Full Year CSV</span>
+                      <span className="text-[10px] bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold px-1.5 py-0.2 rounded">
+                        {yearKey}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      All monthly records for the whole year {yearKey} (expenses-year-{yearKey}.csv)
+                    </div>
+                  </div>
+                </div>
+                <Download className="h-4 w-4 text-purple-500 group-hover:translate-y-0.5 transition-transform" />
+              </button>
+
+              {/* Option 3: Filtered subset if search or filter active */}
+              {(searchQuery || parentTypeFilter !== "all" || selectedCategoryId !== "all") && (
+                <button
+                  type="button"
+                  onClick={handleExportFiltered}
+                  className="w-full text-left rounded-xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 p-3 hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-all flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                      <Filter className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-amber-800 dark:text-amber-200">
+                        Export Filtered Search Results CSV
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Only the {filtered.length} currently visible filtered items
+                      </div>
+                    </div>
+                  </div>
+                  <Download className="h-4 w-4 text-amber-500 group-hover:translate-y-0.5 transition-transform" />
+                </button>
+              )}
+
+              {/* Option 4: All-Time CSV / JSON */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleExportAll}
+                  className="rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
+                >
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">All Records CSV</div>
+                    <div className="text-[10px] text-slate-500">Complete historical CSV</div>
+                  </div>
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-slate-400" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportJSON}
+                  className="rounded-xl border border-slate-200 dark:border-slate-800 p-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
+                >
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">JSON Backup</div>
+                    <div className="text-[10px] text-slate-500">Raw database backup</div>
+                  </div>
+                  <FileJson className="h-3.5 w-3.5 text-slate-400" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                className="rounded-xl border border-slate-200 dark:border-slate-700 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

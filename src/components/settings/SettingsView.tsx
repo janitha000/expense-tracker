@@ -19,15 +19,27 @@ import {
   Mail,
   Send,
   Calendar,
+  Download,
+  FileSpreadsheet,
+  FileJson,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import {
+  exportMonthlyExpenses,
+  exportYearlyExpenses,
+  exportAllExpensesJSON,
+  generateExpensesCSV,
+  triggerFileDownload,
+} from "@/lib/export";
 import confetti from "canvas-confetti";
-import { format } from "date-fns";
+import { format, subMonths } from "date-fns";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme, Theme } from "@/context/ThemeContext";
+import { ExpenseWithCategory } from "@/lib/types";
 
 interface SettingsViewProps {
   baselineBudget: number;
+  allExpenses?: ExpenseWithCategory[];
   onUpdateBudget: (newBudget: number) => Promise<void>;
   onResetSeed: () => Promise<void>;
   isLiveDb: boolean;
@@ -36,6 +48,7 @@ interface SettingsViewProps {
 
 export function SettingsView({
   baselineBudget,
+  allExpenses = [],
   onUpdateBudget,
   onResetSeed,
   isLiveDb,
@@ -44,6 +57,12 @@ export function SettingsView({
   const { hasPinSet, isPinEnabled, enablePin, disablePin, openPinSetup } = useAuth();
   const { theme, setTheme } = useTheme();
   const [budgetInput, setBudgetInput] = useState<string>(baselineBudget.toString());
+  const [selectedExportMonth, setSelectedExportMonth] = useState<string>(
+    format(currentDate, "yyyy-MM")
+  );
+  const [selectedExportYear, setSelectedExportYear] = useState<string>(
+    format(currentDate, "yyyy")
+  );
   const [recipientEmail, setRecipientEmail] = useState<string>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("expense_notification_email") || "";
@@ -55,6 +74,64 @@ export function SettingsView({
   const [isSendingTestDaily, setIsSendingTestDaily] = useState(false);
   const [isSendingTestMonthly, setIsSendingTestMonthly] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Generate available export months (last 12 months)
+  const availableMonths = Array.from({ length: 12 }).map((_, i) => {
+    const d = subMonths(new Date(), i);
+    return {
+      key: format(d, "yyyy-MM"),
+      label: format(d, "MMMM yyyy"),
+    };
+  });
+
+  // Generate available export years (e.g. current year and prior 3 years)
+  const currentYearNum = new Date().getFullYear();
+  const availableYears = [
+    currentYearNum.toString(),
+    (currentYearNum - 1).toString(),
+    (currentYearNum - 2).toString(),
+  ];
+
+  const handleExportMonthCSV = () => {
+    const res = exportMonthlyExpenses(allExpenses, selectedExportMonth);
+    confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
+    setStatusMessage({
+      type: "success",
+      text: `Exported ${res.count} records (${formatCurrency(res.total)}) for ${selectedExportMonth}!`,
+    });
+    setTimeout(() => setStatusMessage(null), 4000);
+  };
+
+  const handleExportYearCSV = () => {
+    const res = exportYearlyExpenses(allExpenses, selectedExportYear);
+    confetti({ particleCount: 50, spread: 70, origin: { y: 0.8 } });
+    setStatusMessage({
+      type: "success",
+      text: `Exported ${res.count} records (${formatCurrency(res.total)}) for year ${selectedExportYear}!`,
+    });
+    setTimeout(() => setStatusMessage(null), 4000);
+  };
+
+  const handleExportAllCSV = () => {
+    const csv = generateExpensesCSV(allExpenses, "All Expenses Backup");
+    triggerFileDownload(csv, "expenses-all-time.csv");
+    confetti({ particleCount: 50, spread: 70, origin: { y: 0.8 } });
+    setStatusMessage({
+      type: "success",
+      text: `Exported all ${allExpenses.length} historical expense records to CSV!`,
+    });
+    setTimeout(() => setStatusMessage(null), 4000);
+  };
+
+  const handleExportJSON = () => {
+    exportAllExpensesJSON(allExpenses);
+    confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
+    setStatusMessage({
+      type: "success",
+      text: `Exported full database JSON backup of ${allExpenses.length} expenses!`,
+    });
+    setTimeout(() => setStatusMessage(null), 4000);
+  };
 
   const handleSaveEmail = (val: string) => {
     setRecipientEmail(val);
@@ -470,7 +547,114 @@ export function SettingsView({
         </div>
       </div>
 
-      {/* 5. Database Connection & Deployment */}
+      {/* 5. Data Export & Backup Card */}
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 shadow-lg backdrop-blur-sm space-y-4">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Download className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                Data Export & Backup
+                <span className="rounded-full bg-blue-500/15 border border-blue-500/30 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                  CSV / JSON
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Download monthly or yearly financial statements for Excel, Sheets, or archival
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-slate-100 dark:border-slate-800/80 pt-3">
+          {/* Monthly Export Card */}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/60 p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <FileSpreadsheet className="h-4 w-4 text-blue-500" />
+                Monthly Statement (CSV)
+              </span>
+            </div>
+            <select
+              value={selectedExportMonth}
+              onChange={(e) => setSelectedExportMonth(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-1.5 px-2.5 text-xs font-medium text-slate-800 dark:text-slate-200 focus:border-blue-500 focus:outline-none"
+            >
+              {availableMonths.map((m) => (
+                <option key={m.key} value={m.key}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleExportMonthCSV}
+              className="w-full rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-500 transition-colors shadow-sm flex items-center justify-center gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Download Monthly CSV</span>
+            </button>
+          </div>
+
+          {/* Yearly Export Card */}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/60 p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-purple-500" />
+                Yearly Statement (CSV)
+              </span>
+            </div>
+            <select
+              value={selectedExportYear}
+              onChange={(e) => setSelectedExportYear(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-1.5 px-2.5 text-xs font-medium text-slate-800 dark:text-slate-200 focus:border-blue-500 focus:outline-none"
+            >
+              {availableYears.map((yr) => (
+                <option key={yr} value={yr}>
+                  Year {yr}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleExportYearCSV}
+              className="w-full rounded-xl bg-purple-600 px-3 py-2 text-xs font-bold text-white hover:bg-purple-500 transition-colors shadow-sm flex items-center justify-center gap-1.5"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Download Yearly CSV</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Full Database Archive Buttons */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/60 text-xs">
+          <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+            Total historical records: <strong>{allExpenses.length}</strong> expenses
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportAllCSV}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 shadow-sm"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-slate-500" />
+              <span>Export All (CSV)</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportJSON}
+              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 shadow-sm"
+            >
+              <FileJson className="h-3.5 w-3.5 text-slate-500" />
+              <span>JSON Backup</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Database Connection & Deployment */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/80 p-5 shadow-lg backdrop-blur-sm space-y-3">
         <div className="flex items-center gap-3">
           <div
