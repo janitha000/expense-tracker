@@ -341,11 +341,31 @@ export function computeDailyBurnRate(
     totalNormalSoFar += dailyNormalMap.get(day) || 0;
   }
 
-  // Current empirical daily burn pace (fallback to budget pace if 0)
-  const dailyRunRate =
-    totalNormalSoFar > 0 && maxDayToRender > 0
-      ? totalNormalSoFar / maxDayToRender
+  // Isolate Day 1 (which typically includes major 1st-of-month lump sums like rent, bills, EMIs)
+  const day1NormalSpend = dailyNormalMap.get(1) || 0;
+  const remainingDiscretionaryDays = Math.max(1, daysInMonth - 1);
+  const remainingBudgetForMonth = Math.max(0, baselineBudget - day1NormalSpend);
+  const defaultRemainingDailyPace =
+    remainingBudgetForMonth > 0
+      ? remainingBudgetForMonth / remainingDiscretionaryDays
       : baselineBudget / daysInMonth;
+
+  // Calculate empirical daily pace excluding Day 1 (from Day 2 onwards)
+  let postDay1Spend = 0;
+  for (let day = 2; day <= maxDayToRender; day++) {
+    postDay1Spend += dailyNormalMap.get(day) || 0;
+  }
+  const elapsedPostDay1Days = Math.max(0, maxDayToRender - 1);
+
+  let projectedDailyVelocity = defaultRemainingDailyPace;
+
+  if (elapsedPostDay1Days > 0) {
+    const empiricalPostDay1Rate = postDay1Spend / elapsedPostDay1Days;
+    // Transition smoothly towards empirical post-Day 1 rate as more days elapse (100% confidence by Day 8)
+    const confidenceWeight = Math.min(1, elapsedPostDay1Days / 7);
+    projectedDailyVelocity =
+      empiricalPostDay1Rate * confidenceWeight + defaultRemainingDailyPace * (1 - confidenceWeight);
+  }
 
   const baseStartingAmount = Math.min(50000, baselineBudget * 0.5);
   const burnPoints: DailyBurnPoint[] = [];
@@ -388,8 +408,10 @@ export function computeDailyBurnRate(
         budgetLimit: baselineBudget,
       });
     } else {
-      // Future days: project forward based on current daily run rate
-      const projected = Number((totalNormalSoFar + dailyRunRate * (day - maxDayToRender)).toFixed(2));
+      // Future days: project forward based on blended progressive velocity
+      const projected = Number(
+        (totalNormalSoFar + projectedDailyVelocity * (day - maxDayToRender)).toFixed(2)
+      );
       burnPoints.push({
         day,
         date: dateStr,
