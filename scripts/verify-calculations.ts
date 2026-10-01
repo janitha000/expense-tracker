@@ -50,7 +50,7 @@ const mockCurrentExpenses: ExpenseWithCategory[] = [
     amount: "45000.00",
     date: "2026-09-08",
     categoryId: "cat-2",
-    parentType: "one_time",
+    parentType: "normal",
     category: mockCategory2,
     createdAt: "2026-09-08T10:00:00Z",
   },

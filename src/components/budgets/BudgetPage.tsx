@@ -107,9 +107,9 @@ export function BudgetPage({
                   ({format(currentDate, "MMMM yyyy")})
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Track real-time spend pace, limits, and over/under allocations
-              </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Track real-time spend pace, limits, and progress. Budgets apply to current and future months automatically.
+                </p>
             </div>
           </div>
 
@@ -438,6 +438,9 @@ export function BudgetPage({
                     className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 py-2.5 pl-11 pr-3 text-sm font-bold text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                 </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
+                  💡 This limit will apply to <strong>{format(currentDate, "MMMM yyyy")}</strong> and all future months. Past months will retain their historical limits.
+                </p>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-1">

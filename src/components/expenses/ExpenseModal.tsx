@@ -196,9 +196,9 @@ export function ExpenseModal({
   // Real-time Budget Comparison & Alerts (Only Normal expenses count towards the budget)
   const targetMonth = date ? date.substring(0, 7) : format(new Date(), "yyyy-MM");
   const selectedCat = categories.find((c) => c.id === categoryId);
-  const catBudgetObj = categoryBudgets.find(
-    (cb) => cb.categoryId === categoryId && cb.month === targetMonth
-  );
+  const catBudgetObj =
+    categoryBudgets.find((cb) => cb.categoryId === categoryId && cb.month === targetMonth) ||
+    categoryBudgets.find((cb) => cb.categoryId === categoryId);
   const catBudgetAmount = catBudgetObj
     ? Number(catBudgetObj.budgetAmount)
     : selectedCat

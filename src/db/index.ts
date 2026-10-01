@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc, and, gte, lte, gt, asc } from "drizzle-orm";
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_BASELINE_BUDGET,
@@ -36,30 +36,22 @@ class InMemoryStore {
 
   constructor() {
     const now = new Date();
-    const currentMonth = now.toISOString().substring(0, 7);
     this.budgets.push({
-      id: "b-current",
-      month: currentMonth,
-      baselineAmount: DEFAULT_BASELINE_BUDGET,
+      id: "b-initial",
+      month: "2020-01",
+      baselineAmount: DEFAULT_BASELINE_BUDGET.toFixed(2),
       createdAt: now.toISOString(),
     });
 
-    this.ensureCategoryBudgetsForMonth(currentMonth);
-  }
-
-  private ensureCategoryBudgetsForMonth(month: string) {
-    const existing = this.categoryBudgets.filter((cb) => cb.month === month);
-    if (existing.length === 0) {
-      for (const cat of this.categories) {
-        const defaultAmt = DEFAULT_CATEGORY_BUDGET_MAP[cat.name] || 25000;
-        this.categoryBudgets.push({
-          id: `cb-${month}-${cat.id}`,
-          month,
-          categoryId: cat.id,
-          budgetAmount: defaultAmt,
-          createdAt: new Date().toISOString(),
-        });
-      }
+    for (const cat of this.categories) {
+      const defaultAmt = DEFAULT_CATEGORY_BUDGET_MAP[cat.name] || 25000;
+      this.categoryBudgets.push({
+        id: `cb-initial-${cat.id}`,
+        month: "2020-01",
+        categoryId: cat.id,
+        budgetAmount: defaultAmt.toFixed(2),
+        createdAt: now.toISOString(),
+      });
     }
   }
 
@@ -276,57 +268,153 @@ class InMemoryStore {
   }
 
   public getBudget(month: string): MonthlyBudget | undefined {
-    return this.budgets.find((b) => b.month === month);
+    const applicable = this.budgets
+      .filter((b) => b.month <= month)
+      .sort((a, b) => b.month.localeCompare(a.month));
+
+    if (applicable.length > 0) {
+      const latest = applicable[0];
+      return {
+        id: latest.id,
+        month,
+        baselineAmount: latest.baselineAmount,
+        createdAt: latest.createdAt,
+      };
+    }
+
+    if (this.budgets.length > 0) {
+      const earliest = [...this.budgets].sort((a, b) => a.month.localeCompare(b.month))[0];
+      return {
+        id: earliest.id,
+        month,
+        baselineAmount: earliest.baselineAmount,
+        createdAt: earliest.createdAt,
+      };
+    }
+
+    return undefined;
   }
 
   public setBudget(month: string, amount: number): MonthlyBudget {
-    const index = this.budgets.findIndex((b) => b.month === month);
-    if (index >= 0) {
-      this.budgets[index].baselineAmount = amount.toFixed(2);
-      return this.budgets[index];
+    const amtStr = amount.toFixed(2);
+    const existingIndex = this.budgets.findIndex((b) => b.month === month);
+    let targetBudget: MonthlyBudget;
+
+    if (existingIndex >= 0) {
+      this.budgets[existingIndex].baselineAmount = amtStr;
+      targetBudget = this.budgets[existingIndex];
     } else {
-      const newBudget: MonthlyBudget = {
+      targetBudget = {
         id: `budget-${Date.now()}`,
         month,
-        baselineAmount: amount.toFixed(2),
+        baselineAmount: amtStr,
         createdAt: new Date().toISOString(),
       };
-      this.budgets.push(newBudget);
-      return newBudget;
+      this.budgets.push(targetBudget);
     }
+
+    // Cascade update forward to all existing future months (lifetime carry forward)
+    for (const b of this.budgets) {
+      if (b.month > month) {
+        b.baselineAmount = amtStr;
+      }
+    }
+
+    return targetBudget;
   }
 
   public getCategoryBudgets(month: string): CategoryBudget[] {
-    this.ensureCategoryBudgetsForMonth(month);
-    return this.categoryBudgets.filter((cb) => cb.month === month);
+    const result: CategoryBudget[] = [];
+
+    for (const cat of this.categories) {
+      const applicable = this.categoryBudgets
+        .filter((cb) => cb.categoryId === cat.id && cb.month <= month)
+        .sort((a, b) => b.month.localeCompare(a.month));
+
+      if (applicable.length > 0) {
+        const latest = applicable[0];
+        result.push({
+          id: latest.id,
+          month,
+          categoryId: cat.id,
+          budgetAmount: latest.budgetAmount,
+          createdAt: latest.createdAt,
+        });
+      } else {
+        const anyForCat = this.categoryBudgets
+          .filter((cb) => cb.categoryId === cat.id)
+          .sort((a, b) => a.month.localeCompare(b.month));
+
+        const defaultAmt = anyForCat.length > 0
+          ? anyForCat[0].budgetAmount
+          : (DEFAULT_CATEGORY_BUDGET_MAP[cat.name] || 25000).toFixed(2);
+
+        result.push({
+          id: `cb-${month}-${cat.id}`,
+          month,
+          categoryId: cat.id,
+          budgetAmount: defaultAmt,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    return result;
   }
 
   public setCategoryBudget(month: string, categoryId: string, amount: number): CategoryBudget {
-    const index = this.categoryBudgets.findIndex(
+    const amtStr = amount.toFixed(2);
+    const existingIndex = this.categoryBudgets.findIndex(
       (cb) => cb.month === month && cb.categoryId === categoryId
     );
-    if (index >= 0) {
-      this.categoryBudgets[index].budgetAmount = amount.toFixed(2);
-      return this.categoryBudgets[index];
+    let targetCb: CategoryBudget;
+
+    if (existingIndex >= 0) {
+      this.categoryBudgets[existingIndex].budgetAmount = amtStr;
+      targetCb = this.categoryBudgets[existingIndex];
     } else {
-      const newCb: CategoryBudget = {
+      targetCb = {
         id: `cb-${month}-${categoryId}`,
         month,
         categoryId,
-        budgetAmount: amount.toFixed(2),
+        budgetAmount: amtStr,
         createdAt: new Date().toISOString(),
       };
-      this.categoryBudgets.push(newCb);
-      return newCb;
+      this.categoryBudgets.push(targetCb);
     }
+
+    // Cascade update forward to all existing future records for this category (lifetime carry forward)
+    for (const cb of this.categoryBudgets) {
+      if (cb.categoryId === categoryId && cb.month > month) {
+        cb.budgetAmount = amtStr;
+      }
+    }
+
+    return targetCb;
   }
 
   public resetToClean(): void {
     this.categories = [...DEFAULT_CATEGORIES];
-    this.expenses = []; // Zero expenses
+    this.expenses = [];
+    this.budgets = [
+      {
+        id: "b-initial",
+        month: "2020-01",
+        baselineAmount: DEFAULT_BASELINE_BUDGET.toFixed(2),
+        createdAt: new Date().toISOString(),
+      },
+    ];
     this.categoryBudgets = [];
-    const currentMonth = new Date().toISOString().substring(0, 7);
-    this.ensureCategoryBudgetsForMonth(currentMonth);
+    for (const cat of this.categories) {
+      const defaultAmt = DEFAULT_CATEGORY_BUDGET_MAP[cat.name] || 25000;
+      this.categoryBudgets.push({
+        id: `cb-initial-${cat.id}`,
+        month: "2020-01",
+        categoryId: cat.id,
+        budgetAmount: defaultAmt.toFixed(2),
+        createdAt: new Date().toISOString(),
+      });
+    }
   }
 }
 
@@ -792,15 +880,40 @@ export const dataLayer = {
     if (db) {
       try {
         await ensureSchema();
-        const result = await db.query.monthlyBudgets.findFirst({
-          where: eq(schema.monthlyBudgets.month, month),
-        });
-        if (result) {
+        // 1. Find the latest budget on or before the requested month
+        const [latest] = await db
+          .select()
+          .from(schema.monthlyBudgets)
+          .where(lte(schema.monthlyBudgets.month, month))
+          .orderBy(desc(schema.monthlyBudgets.month))
+          .limit(1);
+
+        if (latest) {
           return {
-            ...result,
-            createdAt: result.createdAt.toISOString(),
+            id: latest.id,
+            month,
+            baselineAmount: latest.baselineAmount,
+            createdAt: latest.createdAt.toISOString(),
           };
         }
+
+        // 2. If none on or before, find earliest recorded budget in DB
+        const [earliest] = await db
+          .select()
+          .from(schema.monthlyBudgets)
+          .orderBy(asc(schema.monthlyBudgets.month))
+          .limit(1);
+
+        if (earliest) {
+          return {
+            id: earliest.id,
+            month,
+            baselineAmount: earliest.baselineAmount,
+            createdAt: earliest.createdAt.toISOString(),
+          };
+        }
+
+        return null;
       } catch (err) {
         console.error("Neon DB getBudget error:", err);
       }
@@ -809,6 +922,7 @@ export const dataLayer = {
   },
 
   async setBudget(month: string, amount: number): Promise<MonthlyBudget> {
+    const amtStr = amount.toFixed(2);
     if (db) {
       try {
         await ensureSchema();
@@ -816,20 +930,29 @@ export const dataLayer = {
           where: eq(schema.monthlyBudgets.month, month),
         });
 
+        let target: typeof schema.monthlyBudgets.$inferSelect;
         if (existing) {
           const [updated] = await db
             .update(schema.monthlyBudgets)
-            .set({ baselineAmount: amount.toFixed(2) })
+            .set({ baselineAmount: amtStr })
             .where(eq(schema.monthlyBudgets.month, month))
             .returning();
-          return { ...updated, createdAt: updated.createdAt.toISOString() };
+          target = updated;
         } else {
           const [inserted] = await db
             .insert(schema.monthlyBudgets)
-            .values({ month, baselineAmount: amount.toFixed(2) })
+            .values({ month, baselineAmount: amtStr })
             .returning();
-          return { ...inserted, createdAt: inserted.createdAt.toISOString() };
+          target = inserted;
         }
+
+        // Cascade update forward to all existing future months (lifetime carry forward)
+        await db
+          .update(schema.monthlyBudgets)
+          .set({ baselineAmount: amtStr })
+          .where(gt(schema.monthlyBudgets.month, month));
+
+        return { ...target, createdAt: target.createdAt.toISOString() };
       } catch (err) {
         console.error("Neon DB setBudget error:", err);
       }
@@ -841,40 +964,55 @@ export const dataLayer = {
     if (db) {
       try {
         await ensureSchema();
-        const rows = await db
-          .select()
-          .from(schema.categoryBudgets)
-          .where(eq(schema.categoryBudgets.month, month));
-
-        if (rows.length > 0) {
-          return rows.map((r) => ({
-            ...r,
-            createdAt: r.createdAt.toISOString(),
-          }));
-        }
-
         const allCats = await this.getCategories();
+        const result: CategoryBudget[] = [];
+
         for (const cat of allCats) {
-          const defaultAmt = DEFAULT_CATEGORY_BUDGET_MAP[cat.name] || 25000;
-          await db
-            .insert(schema.categoryBudgets)
-            .values({
+          // Find latest recorded category budget where categoryId = cat.id and month <= month
+          const [latest] = await db
+            .select()
+            .from(schema.categoryBudgets)
+            .where(
+              and(
+                eq(schema.categoryBudgets.categoryId, cat.id),
+                lte(schema.categoryBudgets.month, month)
+              )
+            )
+            .orderBy(desc(schema.categoryBudgets.month))
+            .limit(1);
+
+          if (latest) {
+            result.push({
+              id: latest.id,
               month,
               categoryId: cat.id,
-              budgetAmount: defaultAmt.toFixed(2),
-            })
-            .onConflictDoNothing();
+              budgetAmount: latest.budgetAmount,
+              createdAt: latest.createdAt.toISOString(),
+            });
+          } else {
+            // Find earliest if any exists, otherwise fallback to default constant
+            const [earliest] = await db
+              .select()
+              .from(schema.categoryBudgets)
+              .where(eq(schema.categoryBudgets.categoryId, cat.id))
+              .orderBy(asc(schema.categoryBudgets.month))
+              .limit(1);
+
+            const defaultAmt = earliest
+              ? earliest.budgetAmount
+              : (DEFAULT_CATEGORY_BUDGET_MAP[cat.name] || 25000).toFixed(2);
+
+            result.push({
+              id: `cb-${month}-${cat.id}`,
+              month,
+              categoryId: cat.id,
+              budgetAmount: defaultAmt,
+              createdAt: new Date().toISOString(),
+            });
+          }
         }
 
-        const seededRows = await db
-          .select()
-          .from(schema.categoryBudgets)
-          .where(eq(schema.categoryBudgets.month, month));
-
-        return seededRows.map((r) => ({
-          ...r,
-          createdAt: r.createdAt.toISOString(),
-        }));
+        return result;
       } catch (err) {
         console.error("Neon DB getCategoryBudgets error:", err);
       }
@@ -887,8 +1025,10 @@ export const dataLayer = {
     categoryId: string,
     amount: number
   ): Promise<CategoryBudget> {
+    const amtStr = amount.toFixed(2);
     if (db) {
       try {
+        await ensureSchema();
         const existing = await db.query.categoryBudgets.findFirst({
           where: and(
             eq(schema.categoryBudgets.month, month),
@@ -896,10 +1036,11 @@ export const dataLayer = {
           ),
         });
 
+        let target: typeof schema.categoryBudgets.$inferSelect;
         if (existing) {
           const [updated] = await db
             .update(schema.categoryBudgets)
-            .set({ budgetAmount: amount.toFixed(2) })
+            .set({ budgetAmount: amtStr })
             .where(
               and(
                 eq(schema.categoryBudgets.month, month),
@@ -907,18 +1048,31 @@ export const dataLayer = {
               )
             )
             .returning();
-          return { ...updated, createdAt: updated.createdAt.toISOString() };
+          target = updated;
         } else {
           const [inserted] = await db
             .insert(schema.categoryBudgets)
             .values({
               month,
               categoryId,
-              budgetAmount: amount.toFixed(2),
+              budgetAmount: amtStr,
             })
             .returning();
-          return { ...inserted, createdAt: inserted.createdAt.toISOString() };
+          target = inserted;
         }
+
+        // Cascade update forward to all existing future months for this category (lifetime carry forward)
+        await db
+          .update(schema.categoryBudgets)
+          .set({ budgetAmount: amtStr })
+          .where(
+            and(
+              eq(schema.categoryBudgets.categoryId, categoryId),
+              gt(schema.categoryBudgets.month, month)
+            )
+          );
+
+        return { ...target, createdAt: target.createdAt.toISOString() };
       } catch (err) {
         console.error("Neon DB setCategoryBudget error:", err);
       }

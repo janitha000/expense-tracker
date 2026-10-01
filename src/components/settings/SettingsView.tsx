@@ -405,10 +405,10 @@ export function SettingsView({
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                Baseline Monthly Budget ({format(currentDate, "MMMM yyyy")})
+                Baseline Monthly Budget ({format(currentDate, "MMMM yyyy")} onwards)
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Used to compute run-rate percentages and over/under budget trajectory
+                Used to compute run-rate percentages. Changes apply to this month and all future months.
               </p>
             </div>
           </div>
