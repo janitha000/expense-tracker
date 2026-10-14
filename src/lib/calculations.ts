@@ -51,7 +51,7 @@ export function computeKPISummary(
   const daysInMonth = getDaysInMonth(targetDate);
   const currentDay = isCurrentActiveMonth ? getDate(now) : daysInMonth;
 
-  // Previous month cutoff: consider expenses up to the current date (not end of month)
+  // Previous month cutoff: consider normal living expenses up to current date (one-time spikes ignored)
   const prevMonthDate = subMonths(targetDate, 1);
   const prevMonthKey = format(prevMonthDate, "yyyy-MM");
   const daysInPrevMonth = getDaysInMonth(prevMonthDate);
@@ -61,7 +61,7 @@ export function computeKPISummary(
 
   let prevMonthTotal = 0;
   for (const exp of previousMonthExpenses) {
-    if (exp.date.startsWith(prevMonthKey)) {
+    if (exp.date.startsWith(prevMonthKey) && exp.parentType === "normal") {
       const day = parseInt(exp.date.substring(8, 10), 10);
       if (!isNaN(day) && day <= prevMonthCutoffDay) {
         prevMonthTotal += Number(exp.amount) || 0;
@@ -69,15 +69,17 @@ export function computeKPISummary(
     }
   }
 
-  // Current month spend as of current date for apples-to-apples MoM calculation
-  let currentTotalToDate = 0;
+  // Current month normal spend as of current date for apples-to-apples MoM calculation (one-time spikes ignored)
+  let currentNormalToDate = 0;
   for (const exp of currentMonthExpenses) {
-    const day = parseInt(exp.date.substring(8, 10), 10);
-    if (!isNaN(day) && (isCurrentActiveMonth ? day <= currentDay : true)) {
-      currentTotalToDate += Number(exp.amount) || 0;
+    if (exp.parentType === "normal") {
+      const day = parseInt(exp.date.substring(8, 10), 10);
+      if (!isNaN(day) && (isCurrentActiveMonth ? day <= currentDay : true)) {
+        currentNormalToDate += Number(exp.amount) || 0;
+      }
     }
   }
-  const momBasisCurrent = isCurrentActiveMonth ? currentTotalToDate : currentTotal;
+  const momBasisCurrent = isCurrentActiveMonth ? currentNormalToDate : normalTotal;
 
   const momChangePct =
     prevMonthTotal > 0

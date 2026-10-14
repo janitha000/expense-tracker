@@ -208,7 +208,7 @@ export function AnalyticsDashboard({
 
           <div
             className="mt-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate"
-            title={`Prior month spend up to Day ${kpi.currentDay}: ${formatCurrency(kpi.prevMonthTotal)}`}
+            title={`Prior month normal spend up to Day ${kpi.currentDay}: ${formatCurrency(kpi.prevMonthTotal)} (one-time spikes excluded)`}
           >
             Prior{kpi.currentDay < kpi.daysInMonth ? ` (D${kpi.currentDay})` : ""}: {formatCompactCurrency(kpi.prevMonthTotal)}
           </div>
