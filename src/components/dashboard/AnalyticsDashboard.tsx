@@ -309,10 +309,7 @@ export function AnalyticsDashboard({
         </div>
       </div>
 
-      {/* 2. MONTHLY AI FINANCIAL SUMMARY (CHROME GEMINI NANO ON-DEVICE) */}
-      <AISummaryCard summaryData={aiSummaryData} />
-
-      {/* 3. DAILY LIVING EXPENSES BURN RATE & PACED PROJECTION */}
+      {/* 2. DAILY LIVING EXPENSES BURN RATE & PACED PROJECTION */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3.5 sm:p-5 shadow-sm transition-colors space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div>
@@ -903,6 +900,9 @@ export function AnalyticsDashboard({
           </div>
         </div>
       </div>
+
+      {/* 5. MONTHLY AI FINANCIAL SUMMARY (CHROME GEMINI NANO ON-DEVICE) */}
+      <AISummaryCard summaryData={aiSummaryData} />
     </div>
   );
 }
