@@ -14,6 +14,7 @@ import {
 } from "@/lib/calculations";
 import { formatCurrency, formatCompactCurrency } from "@/lib/utils";
 import { DynamicIcon } from "@/components/ui/DynamicIcon";
+import { AISummaryCard } from "@/components/dashboard/AISummaryCard";
 import {
   TrendingUp,
   TrendingDown,
@@ -160,6 +161,27 @@ export function AnalyticsDashboard({
     },
   ];
 
+  const aiSummaryData = {
+    monthKey: format(currentDate, "yyyy-MM"),
+    formattedMonth: format(currentDate, "MMMM yyyy"),
+    currentTotal: kpi.currentTotal,
+    normalTotal: kpi.normalTotal,
+    oneTimeTotal: kpi.oneTimeTotal,
+    baselineBudget: kpi.baselineBudget,
+    dailyAverage: kpi.dailyAverage,
+    currentDay: kpi.currentDay,
+    daysInMonth: kpi.daysInMonth,
+    momChangePct: kpi.momChangePct,
+    prevMonthTotal: kpi.prevMonthTotal,
+    passiveIncome: currentPI,
+    topCategories: categoryData.map((c) => ({
+      name: c.name,
+      total: c.total,
+      percentage: c.percentage,
+    })),
+    projectedFinish,
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6 pb-24">
       {/* 1. KPI SUMMARY CARDS */}
@@ -287,7 +309,10 @@ export function AnalyticsDashboard({
         </div>
       </div>
 
-      {/* 2. DAILY LIVING EXPENSES BURN RATE & PACED PROJECTION */}
+      {/* 2. MONTHLY AI FINANCIAL SUMMARY (CHROME GEMINI NANO ON-DEVICE) */}
+      <AISummaryCard summaryData={aiSummaryData} />
+
+      {/* 3. DAILY LIVING EXPENSES BURN RATE & PACED PROJECTION */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-3.5 sm:p-5 shadow-sm transition-colors space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div>
