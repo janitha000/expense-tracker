@@ -107,6 +107,7 @@ export interface DailyBurnPoint {
   projectedNormal: number | null;
   targetBudgetPace: number;
   budgetLimit: number;
+  prevCumulativeNormal: number | null;
 }
 
 export interface DayGroupedExpenses {

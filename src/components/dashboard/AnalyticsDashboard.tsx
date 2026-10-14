@@ -39,7 +39,7 @@ import {
   Area,
   ReferenceLine,
 } from "recharts";
-import { format } from "date-fns";
+import { format, subMonths } from "date-fns";
 import { useTheme } from "@/context/ThemeContext";
 
 interface AnalyticsDashboardProps {
@@ -71,7 +71,12 @@ export function AnalyticsDashboard({
 
   const categoryData = computeCategoryBreakdown(currentMonthExpenses, donutFilter);
   const monthlyTrend = computeMonthlyTrend(allExpenses, currentDate, 6);
-  const dailyBurn = computeDailyBurnRate(currentMonthExpenses, currentDate, baselineBudget);
+  const dailyBurn = computeDailyBurnRate(
+    currentMonthExpenses,
+    previousMonthExpenses,
+    currentDate,
+    baselineBudget
+  );
 
   const endPoint = dailyBurn[dailyBurn.length - 1];
   const projectedFinish = endPoint?.projectedNormal ?? kpi.normalTotal;
@@ -201,8 +206,11 @@ export function AnalyticsDashboard({
             )}
           </div>
 
-          <div className="mt-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate">
-            Prior: {formatCompactCurrency(kpi.prevMonthTotal)}
+          <div
+            className="mt-1 text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 truncate"
+            title={`Prior month spend up to Day ${kpi.currentDay}: ${formatCurrency(kpi.prevMonthTotal)}`}
+          >
+            Prior{kpi.currentDay < kpi.daysInMonth ? ` (D${kpi.currentDay})` : ""}: {formatCompactCurrency(kpi.prevMonthTotal)}
           </div>
         </div>
       </div>
@@ -228,6 +236,10 @@ export function AnalyticsDashboard({
             <div className="flex items-center gap-1 text-purple-600 dark:text-purple-400 font-medium">
               <div className="h-0.5 w-3 border-t-2 border-dashed border-purple-500" />
               <span>Forecast Pace</span>
+            </div>
+            <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium">
+              <div className="h-0.5 w-3 border-t-2 border-dashed border-slate-500 dark:border-slate-400" />
+              <span>Prev Month</span>
             </div>
             <div className="flex items-center gap-1 text-slate-400">
               <div className="h-0.5 w-2.5 border-t border-dotted border-slate-400 dark:border-slate-500" />
@@ -282,13 +294,15 @@ export function AnalyticsDashboard({
                 }}
                 formatter={(value: any, name: any) => {
                   const num = Number(value);
-                  if (isNaN(num) || value === null) return ["-", name];
                   const label =
                     name === "cumulativeNormal"
                       ? "Actual Spend (Normal)"
                       : name === "projectedNormal"
                       ? "Paced Forecast Trajectory"
+                      : name === "prevCumulativeNormal"
+                      ? `Prev Month (${format(subMonths(currentDate, 1), "MMM")})`
                       : "Target Budget Pace";
+                  if (isNaN(num) || value === null) return ["-", label];
                   return [formatCurrency(num), label];
                 }}
                 labelFormatter={(label) => `Day ${label} (${format(currentDate, "MMM yyyy")})`}
@@ -315,6 +329,16 @@ export function AnalyticsDashboard({
                 fillOpacity={1}
                 fill="url(#colorNormal)"
                 connectNulls={false}
+              />
+              {/* Previous month reference line (normal living spend only) */}
+              <Area
+                type="monotone"
+                dataKey="prevCumulativeNormal"
+                stroke={isDark ? "#94a3b8" : "#64748b"}
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                fill="none"
+                connectNulls={true}
               />
               {/* Intelligent Paced Forecast Line */}
               <Area

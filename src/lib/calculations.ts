@@ -46,14 +46,42 @@ export function computeKPISummary(
 
   const currentTotal = normalTotal + oneTimeTotal;
 
+  const now = new Date();
+  const isCurrentActiveMonth = isSameMonth(targetDate, now);
+  const daysInMonth = getDaysInMonth(targetDate);
+  const currentDay = isCurrentActiveMonth ? getDate(now) : daysInMonth;
+
+  // Previous month cutoff: consider expenses up to the current date (not end of month)
+  const prevMonthDate = subMonths(targetDate, 1);
+  const prevMonthKey = format(prevMonthDate, "yyyy-MM");
+  const daysInPrevMonth = getDaysInMonth(prevMonthDate);
+  const prevMonthCutoffDay = isCurrentActiveMonth
+    ? Math.min(currentDay, daysInPrevMonth)
+    : daysInPrevMonth;
+
   let prevMonthTotal = 0;
   for (const exp of previousMonthExpenses) {
-    prevMonthTotal += Number(exp.amount) || 0;
+    if (exp.date.startsWith(prevMonthKey)) {
+      const day = parseInt(exp.date.substring(8, 10), 10);
+      if (!isNaN(day) && day <= prevMonthCutoffDay) {
+        prevMonthTotal += Number(exp.amount) || 0;
+      }
+    }
   }
+
+  // Current month spend as of current date for apples-to-apples MoM calculation
+  let currentTotalToDate = 0;
+  for (const exp of currentMonthExpenses) {
+    const day = parseInt(exp.date.substring(8, 10), 10);
+    if (!isNaN(day) && (isCurrentActiveMonth ? day <= currentDay : true)) {
+      currentTotalToDate += Number(exp.amount) || 0;
+    }
+  }
+  const momBasisCurrent = isCurrentActiveMonth ? currentTotalToDate : currentTotal;
 
   const momChangePct =
     prevMonthTotal > 0
-      ? Number((((currentTotal - prevMonthTotal) / prevMonthTotal) * 100).toFixed(1))
+      ? Number((((momBasisCurrent - prevMonthTotal) / prevMonthTotal) * 100).toFixed(1))
       : null;
 
   const normalBudgetPct =
@@ -65,11 +93,6 @@ export function computeKPISummary(
     baselineBudget > 0
       ? Number(((currentTotal / baselineBudget) * 100).toFixed(1))
       : 0;
-
-  const now = new Date();
-  const isCurrentActiveMonth = isSameMonth(targetDate, now);
-  const daysInMonth = getDaysInMonth(targetDate);
-  const currentDay = isCurrentActiveMonth ? getDate(now) : daysInMonth;
 
   const dailyAverage =
     currentDay > 0 ? Number((currentTotal / currentDay).toFixed(2)) : 0;
@@ -308,6 +331,7 @@ export function computeMonthlyTrend(
  */
 export function computeDailyBurnRate(
   currentMonthExpenses: ExpenseWithCategory[],
+  previousMonthExpenses: ExpenseWithCategory[] = [],
   targetDate: Date = new Date(),
   baselineBudget: number = DEFAULT_BASELINE_BUDGET
 ): DailyBurnPoint[] {
@@ -330,6 +354,32 @@ export function computeDailyBurnRate(
         dailyNormalMap.set(
           dayNum,
           (dailyNormalMap.get(dayNum) || 0) + (Number(exp.amount) || 0)
+        );
+      }
+    }
+  }
+
+  // Previous month daily normal expenses (one-time expenses strictly ignored)
+  const prevMonthDate = subMonths(targetDate, 1);
+  const prevMonthKey = format(prevMonthDate, "yyyy-MM");
+  const daysInPrevMonth = getDaysInMonth(prevMonthDate);
+
+  const prevDailyNormalMap = new Map<number, number>();
+  for (let d = 1; d <= daysInPrevMonth; d++) {
+    prevDailyNormalMap.set(d, 0);
+  }
+
+  const hasPrevMonthData = previousMonthExpenses.some((e) =>
+    e.date.startsWith(prevMonthKey)
+  );
+
+  for (const exp of previousMonthExpenses) {
+    if (exp.date.startsWith(prevMonthKey) && exp.parentType === "normal") {
+      const dayNum = parseInt(exp.date.substring(8, 10), 10);
+      if (dayNum >= 1 && dayNum <= daysInPrevMonth) {
+        prevDailyNormalMap.set(
+          dayNum,
+          (prevDailyNormalMap.get(dayNum) || 0) + (Number(exp.amount) || 0)
         );
       }
     }
@@ -370,6 +420,7 @@ export function computeDailyBurnRate(
   const baseStartingAmount = Math.min(50000, baselineBudget * 0.5);
   const burnPoints: DailyBurnPoint[] = [];
   let runningNormal = 0;
+  let runningPrevNormal = 0;
 
   for (let day = 1; day <= daysInMonth; day++) {
     const dailyNormal = dailyNormalMap.get(day) || 0;
@@ -385,6 +436,14 @@ export function computeDailyBurnRate(
           )
         : baselineBudget;
 
+    if (day <= daysInPrevMonth) {
+      runningPrevNormal += prevDailyNormalMap.get(day) || 0;
+    }
+
+    const prevCumulativeNormal = hasPrevMonthData
+      ? Number(runningPrevNormal.toFixed(2))
+      : null;
+
     if (day < maxDayToRender) {
       runningNormal += dailyNormal;
       burnPoints.push({
@@ -395,6 +454,7 @@ export function computeDailyBurnRate(
         projectedNormal: null,
         targetBudgetPace,
         budgetLimit: baselineBudget,
+        prevCumulativeNormal,
       });
     } else if (day === maxDayToRender) {
       runningNormal += dailyNormal;
@@ -406,6 +466,7 @@ export function computeDailyBurnRate(
         projectedNormal: Number(runningNormal.toFixed(2)), // Anchor point for projection
         targetBudgetPace,
         budgetLimit: baselineBudget,
+        prevCumulativeNormal,
       });
     } else {
       // Future days: project forward based on blended progressive velocity
@@ -420,6 +481,7 @@ export function computeDailyBurnRate(
         projectedNormal: projected,
         targetBudgetPace,
         budgetLimit: baselineBudget,
+        prevCumulativeNormal,
       });
     }
   }
