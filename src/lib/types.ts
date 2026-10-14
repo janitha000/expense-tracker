@@ -121,3 +121,10 @@ export interface DayGroupedExpenses {
   oneTimeTotal: number;
   expenses: ExpenseWithCategory[];
 }
+
+export interface MonthlyPassiveIncome {
+  id?: string;
+  month: string; // YYYY-MM
+  amount: number | string;
+  createdAt?: string | Date;
+}

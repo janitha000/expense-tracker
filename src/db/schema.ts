@@ -68,9 +68,17 @@ export const categoryBudgetsRelations = relations(categoryBudgets, ({ one }) => 
   }),
 }));
 
+export const monthlyPassiveIncome = pgTable("monthly_passive_income", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  month: varchar("month", { length: 7 }).notNull().unique(), // YYYY-MM
+  amount: numeric("amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export type Category = typeof categories.$inferSelect;
 export type NewCategory = typeof categories.$inferInsert;
 export type Expense = typeof expenses.$inferSelect;
 export type NewExpense = typeof expenses.$inferInsert;
 export type MonthlyBudget = typeof monthlyBudgets.$inferSelect;
 export type CategoryBudget = typeof categoryBudgets.$inferSelect;
+export type MonthlyPassiveIncome = typeof monthlyPassiveIncome.$inferSelect;

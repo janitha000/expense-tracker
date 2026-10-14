@@ -60,3 +60,12 @@ export const budgetSchema = z.object({
 });
 
 export type BudgetFormData = z.infer<typeof budgetSchema>;
+
+export const passiveIncomeSchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/, { message: "Month must be YYYY-MM" }),
+  amount: z.coerce
+    .number({ message: "Passive income must be a number" })
+    .min(0, { message: "Passive income cannot be negative" }),
+});
+
+export type PassiveIncomeFormData = z.infer<typeof passiveIncomeSchema>;

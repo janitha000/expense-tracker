@@ -33,6 +33,7 @@ class InMemoryStore {
   private expenses: Expense[] = []; // Clean initial state with 0 dummy expenses
   private budgets: MonthlyBudget[] = [];
   private categoryBudgets: CategoryBudget[] = [];
+  private passiveIncomes: Map<string, number> = new Map();
 
   constructor() {
     const now = new Date();
@@ -393,9 +394,19 @@ class InMemoryStore {
     return targetCb;
   }
 
+  public getPassiveIncome(month: string): number {
+    return this.passiveIncomes.get(month) ?? 0;
+  }
+
+  public setPassiveIncome(month: string, amount: number): { month: string; amount: number } {
+    this.passiveIncomes.set(month, amount);
+    return { month, amount };
+  }
+
   public resetToClean(): void {
     this.categories = [...DEFAULT_CATEGORIES];
     this.expenses = [];
+    this.passiveIncomes.clear();
     this.budgets = [
       {
         id: "b-initial",
@@ -483,6 +494,14 @@ export async function ensureSchema(): Promise<void> {
 
     // Create unique index
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS "category_budgets_month_category_idx" ON "category_budgets" ("month", "category_id");`;
+
+    // Create monthly_passive_income table
+    await sql`CREATE TABLE IF NOT EXISTS "monthly_passive_income" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "month" varchar(7) NOT NULL UNIQUE,
+      "amount" numeric(12, 2) DEFAULT '0.00' NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );`;
 
     // Remove legacy removed categories
     await sql`DELETE FROM "categories" WHERE "name" = 'Investments / Savings' AND "is_custom" = false;`;
@@ -1095,6 +1114,50 @@ export const dataLayer = {
           .onConflictDoNothing();
       }
     }
+  },
+
+  async getPassiveIncome(month: string): Promise<number> {
+    if (db) {
+      try {
+        await ensureSchema();
+        const existing = await db.query.monthlyPassiveIncome.findFirst({
+          where: eq(schema.monthlyPassiveIncome.month, month),
+        });
+        if (existing) {
+          return Number(existing.amount) || 0;
+        }
+        return 0;
+      } catch (err) {
+        console.error("Neon DB getPassiveIncome error:", err);
+      }
+    }
+    return memoryStore.getPassiveIncome(month);
+  },
+
+  async setPassiveIncome(month: string, amount: number): Promise<{ month: string; amount: number }> {
+    const amtStr = amount.toFixed(2);
+    if (db) {
+      try {
+        await ensureSchema();
+        const existing = await db.query.monthlyPassiveIncome.findFirst({
+          where: eq(schema.monthlyPassiveIncome.month, month),
+        });
+        if (existing) {
+          await db
+            .update(schema.monthlyPassiveIncome)
+            .set({ amount: amtStr })
+            .where(eq(schema.monthlyPassiveIncome.month, month));
+        } else {
+          await db
+            .insert(schema.monthlyPassiveIncome)
+            .values({ month, amount: amtStr });
+        }
+        return { month, amount };
+      } catch (err) {
+        console.error("Neon DB setPassiveIncome error:", err);
+      }
+    }
+    return memoryStore.setPassiveIncome(month, amount);
   },
 
   async resetCleanDatabase(): Promise<void> {

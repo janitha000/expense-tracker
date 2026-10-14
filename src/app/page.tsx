@@ -30,6 +30,7 @@ export default function Home() {
   const [allExpenses, setAllExpenses] = useState<ExpenseWithCategory[]>([]);
   const [categoryBudgets, setCategoryBudgets] = useState<CategoryBudget[]>([]);
   const [baselineBudget, setBaselineBudget] = useState<number>(DEFAULT_BASELINE_BUDGET);
+  const [passiveIncome, setPassiveIncome] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isLiveDb, setIsLiveDb] = useState<boolean>(false);
 
@@ -81,7 +82,14 @@ export default function Home() {
         }
       }
 
-      // 5. Fetch DB connection status
+      // 5. Fetch monthly passive income
+      const piRes = await fetch(`/api/passive-income?month=${monthKey}`);
+      if (piRes.ok) {
+        const piData = await piRes.json();
+        setPassiveIncome(Number(piData.amount) || 0);
+      }
+
+      // 6. Fetch DB connection status
       const statusRes = await fetch("/api/status");
       if (statusRes.ok) {
         const statusData = await statusRes.json();
@@ -264,6 +272,20 @@ export default function Home() {
     setBaselineBudget(newBudget);
   };
 
+  // Update Monthly Passive Income
+  const handleUpdatePassiveIncome = async (newAmount: number) => {
+    setPassiveIncome(newAmount);
+    const res = await fetch("/api/passive-income", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month: monthKey, amount: newAmount }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || "Failed to update passive income");
+    }
+  };
+
   // Update Individual Category Budget
   const handleUpdateCategoryBudget = async (
     categoryId: string,
@@ -342,6 +364,8 @@ export default function Home() {
                 allExpenses={allExpenses}
                 currentDate={currentDate}
                 baselineBudget={baselineBudget}
+                passiveIncome={passiveIncome}
+                onUpdatePassiveIncome={handleUpdatePassiveIncome}
               />
             )}
 
